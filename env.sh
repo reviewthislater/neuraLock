@@ -18,9 +18,9 @@ sudo apt-get install libatlas-base-dev gfortran -y
 echo "Cleaning unneeded packages"
 sudo apt autoremove -y
 echo "Install python libraries"
-sudo pip3 install -U numpy pandas scikit-learn matplotlib seaborn pyttsx3 -y
+sudo pip3 install -U numpy pandas scikit-learn matplotlib seaborn pyttsx3
 echo "Install OpenCV"
-sudo pip3 install opencv-python opencv-contrib-python -y
+sudo pip3 install opencv-python opencv-contrib-python
 echo "Validating install"
 python3 -c "import cv2; print(cv2.__version__)" || { echo "Install failed"; exit 1; }
 echo "Finished install successfully"
