@@ -66,8 +66,7 @@ class FaceRecognizer(object):
 		print("[INFO] starting video stream...")
 		vs = VideoStream(src=0).start() # initialize the video stream and allow the camera sensor to warm up
 		time.sleep(2.0)
-	    	# start the FPS counter
-		fps = FPS().start()
+		fps = FPS().start() # start the FPS counter
 		return data, vs, fps
 
 	def run(self, data, vs, fps, debug=True):
