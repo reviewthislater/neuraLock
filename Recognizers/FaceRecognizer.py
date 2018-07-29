@@ -71,8 +71,7 @@ class FaceRecognizer(object):
 
 	def run(self, data, vs, fps, debug=True):
 		continousPredictions = 0
-		lastPrediction = ""
-	    	# loop over frames from the video file stream
+	    # loop over frames from the video file stream
 		while continousPredictions <=3:
 			frame = vs.read() # grab the frame from the threaded video stream
 			frame = imutils.resize(frame, width=500) # resize to 500px (to speedup processing)
@@ -136,10 +135,3 @@ class FaceRecognizer(object):
 			vs.stop()
 
 		return set.union(set(names), set(self.validUsers))# detected users
-
-
-if __name__ == "__main__":
-	FR = FaceRecognizer(["Alex"])
-	#FR.encodeImages()
-	data, vs, fps= FR.setup()
-	FR.run(data, vs, fps, debug=True)

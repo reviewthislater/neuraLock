@@ -20,12 +20,13 @@ from .utilities import utilities
 
 class VoiceRecognizer(object):
 
-    def __init__(self, model=None, names=[], unlockPhrase="unlock", savedModelPath="voiceModel.bin", audioDirectory="AudioData"):
+    def __init__(self, model=None, names=[], unlockPhrase="unlock", savedModelPath="voiceModel.bin", audioDirectory="AudioData", validUsers=[]):
         self.model = model
         self.names = names
         self.unlockPhrase = unlockPhrase
         self.savedModelPath = savedModelPath
         self.audioDirectory = audioDirectory
+        self.validUsers = validUsers
 
     def predict(self, signal, rate):
         if self.model is None: raise ValueError("The model has not been fit yet.")
@@ -33,7 +34,7 @@ class VoiceRecognizer(object):
         signalFeatures = self.__extractFeatures(signal, rate)
         predictionProbabilities = self.model.predict_proba(signalFeatures)
         confidence = np.amax(predictionProbabilities)
-        prediction = np.argmax(predictionProbabilities)
+        prediction = self.names[np.argmax(predictionProbabilities)]
         return prediction, confidence
 
     def __getAudioFilePaths(self, audioDirectory=None):
@@ -112,6 +113,18 @@ class VoiceRecognizer(object):
          return audioRates, audioSignals
 
 
+    def run(self):
+        audioRate = [44100]
+        audioChunksize = 1024
+        for i in range(3):
+            # Turn on red led
+            utilities.recordAudioToFile(".tempRecording.wav", rate=audioRate[0], chunksize=audioChunksize)
+            # Turn on orange led
+            signal = read(".tempRecording.wav")[1]
+            prediction, confidence = self.predict(signal, audioRate)
+            if confidence >= 0.7 and prediction in self.validUsers: return prediction
+        return "Unknown"
+
 
     def __extractFeatures(self,audioSignals, audioRates):
         """
@@ -156,15 +169,14 @@ class VoiceRecognizer(object):
                         featureData = np.hstack([featureData, np.array(feature).reshape(-1,1)])
         return featureData
 
-    def recognizeWord(self, filename):
+    def recognizeWord(self):
         r = sr.Recognizer()
-        with sr.AudioFile(sys.path[0] + "/" + filename + ".wav") as source:
-            audio = r.record(source)
+        with sr.AudioFile(".tempRecording.wav") as source: audio = r.record(source)
         try:
-            return r.recognize_sphinx(audio)
+            return r.recognize_sphinx(audio) == self.unlockPhrase
         except sr.UnknownValueError:
             print("Sphinx could not understand audio")
-            return ""
+            return False
         except sr.RequestError as e:
             print("Sphinx error; {0}".format(e))
-            return ""
+            return False
