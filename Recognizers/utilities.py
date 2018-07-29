@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from sklearn import neighbors
 import pyttsx3
+import wave
 
 class utilities(object):
 
@@ -19,13 +20,13 @@ class utilities(object):
         engine.stop()
 
     @staticmethod
-    def recordAudioToFile(self,filename, recordlength=5, rate=44100, channels=1, chunksize=1024, format=pyaudio.paFloat32):
+    def recordAudioToFile(filename, recordlength=5, rate=44100, channels=2, chunksize=1024, format=pyaudio.paFloat32):
         CHUNK = chunksize
         FORMAT = format
         CHANNELS = channels
         RATE = rate
         RECORD_SECONDS = recordlength
-        WAVE_OUTPUT_FILENAME = sys.path[0] + "/" + filename + ".wav"
+        WAVE_OUTPUT_FILENAME = filename + ".wav"
         p = pyaudio.PyAudio()
         stream = p.open(format=FORMAT,
                         channels=CHANNELS,

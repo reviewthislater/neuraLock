@@ -121,9 +121,7 @@ class FaceRecognizer(object):
 					y = top - 15 if top - 15 > 15 else top + 15
 					cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
 					# display the image to our screen
-					print("Show frame")
 					cv2.imshow("Frame", frame)
-					print("After show frame")
 					key = cv2.waitKey(1) & 0xFF
 					if key == ord("q"): break # if the `q` key was pressed, break from the loop
 					fps.update() # update the FPS counter

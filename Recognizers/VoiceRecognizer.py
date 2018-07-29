@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import numpy as np
-import wave
 import sys
 import os
 from scipy.io.wavfile import read
@@ -53,7 +52,8 @@ class VoiceRecognizer(object):
         audioFilePaths, targets = self.__getAudioFilePaths()
         audioRates, audioSignals = self.__preprocessAudio(audioFilePaths)
         audioFeatures = self.__extractFeatures(audioSignals, audioRates)
-        self.model = KNeighborsClassifier(n_jobs=-1, n_neighbors=3)
+        self.model = DecisionTreeClassifier(n_jobs=-1)
+        #self.model = KNeighborsClassifier(n_jobs=-1, n_neighbors=3)
         self.model.fit(audioFeatures, targets)
         self.saveModel()
 
@@ -118,7 +118,7 @@ class VoiceRecognizer(object):
         audioChunksize = 1024
         for i in range(3):
             # Turn on red led
-            utilities.recordAudioToFile(".tempRecording.wav", rate=audioRate[0], chunksize=audioChunksize)
+            utilities.recordAudioToFile(".tempRecording", rate=audioRate[0], chunksize=audioChunksize)
             # Turn on orange led
             signal = read(".tempRecording.wav")[1]
             prediction, confidence = self.predict(signal, audioRate)
