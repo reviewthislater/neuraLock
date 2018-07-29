@@ -1,5 +1,5 @@
 #! /usr/bin/env bash
-# Raspberry Pi OpenCV build script
+# Raspberry Pi neuraLock environment build script
 # By Alex Epstein https://github.com/alexanderepstein
 echo "Updating and Upgrading"
 sudo apt-get update && sudo apt-get upgrade -y
@@ -22,8 +22,13 @@ sudo pip3 install -U numpy pandas scikit-learn matplotlib seaborn pyttsx3
 echo "Install OpenCV"
 sudo pip3 install opencv-python opencv-contrib-python
 echo "Validating OpenCV install"
-python3 -c "import cv2; print(cv2.__version__)" || { echo "Install failed"; exit 1; }
+python3 -c "import cv2; print(cv2.__version__)" || { echo "OpenCV install failed"; exit 1; }
 echo "Install dlib and face_recognition"
 sudo pip3 install dlib face_recognition
+echo "Setting matplotlibrc"
+touch ~/.config/matplotlib/matplotlibrc
+echo "backend: TkAgg"> ~/.config/matplotlib/matplotlibrc
+echo "Validating dlib and face_recognition install"
+python3 -c "import face_recognition" || echo "Face recognition install failed"
 echo "Finished install successfully"
 exit 0
