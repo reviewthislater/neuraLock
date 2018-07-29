@@ -14,7 +14,7 @@ sudo apt-get install libxvidcore-dev libx264-dev -y
 echo "Install GUI libraries"
 sudo apt-get install libqtgui4 libqt4-test libgtk2.0-dev -y
 echo "Install optimization libraries"
-sudo apt-get install libatlas-base-dev gfortran -y
+sudo apt-get install libatlas-base-dev gfortran swig -y
 echo "Cleaning unneeded packages"
 sudo apt autoremove -y
 echo "Install python libraries"
