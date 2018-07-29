@@ -21,7 +21,9 @@ echo "Install python libraries"
 sudo pip3 install -U numpy pandas scikit-learn matplotlib seaborn pyttsx3
 echo "Install OpenCV"
 sudo pip3 install opencv-python opencv-contrib-python
-echo "Validating install"
+echo "Validating OpenCV install"
 python3 -c "import cv2; print(cv2.__version__)" || { echo "Install failed"; exit 1; }
+echo "Install dlib and face_recognition"
+sudo pip3 install dlib face_recognition
 echo "Finished install successfully"
 exit 0
