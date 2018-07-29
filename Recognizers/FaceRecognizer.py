@@ -12,7 +12,7 @@ import warnings
 
 class FaceRecognizer(object):
 
-	def __init__(self, validUsers, detectionMethod="hog", encodings="imageEncodings.bin", detector=cv2.CascadeClassifier(sys.path[0] + "/lbpcascade_frontalface.xml")):
+	def __init__(self, validUsers, detectionMethod="hog", encodings="imageEncodings.bin", detector=cv2.CascadeClassifier("lbpcascade_frontalface.xml")):
 		self.detectionMethod = detectionMethod # Default to hog which is 128d feature extraction and linear svm
 		self.encodings = encodings #pickled encodings, should only need to encode once
 		self.detector = detector # lbp is faster than haar cascade
@@ -69,7 +69,7 @@ class FaceRecognizer(object):
 		fps = FPS().start() # start the FPS counter
 		return data, vs, fps
 
-	def run(self, data, vs, fps, debug=True):
+	def run(self, data, vs, fps, debug=False):
 		continousPredictions = 0
 	    # loop over frames from the video file stream
 		while continousPredictions <=3:
@@ -77,9 +77,8 @@ class FaceRecognizer(object):
 			frame = imutils.resize(frame, width=500) # resize to 500px (to speedup processing)
 			gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # convert the input frame from (1) BGR to grayscale (for face detection)
 			rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # (2) from BGR to RGB (for face recognition)
-
 			rects = self.detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)) 	# detect faces in the grayscale frame
-	    		# OpenCV returns bounding box coordinates in (x, y, w, h) order
+                # OpenCV returns bounding box coordinates in (x, y, w, h) order
 	    		# but we need them in (top, right, bottom, left) order, so we
 	    		# need to do a bit of reordering
 			boxes = [(y, x + w, y + h, x) for (x, y, w, h) in rects]
@@ -115,23 +114,26 @@ class FaceRecognizer(object):
 			else: continousPredictions = 0
 
 			if debug:
+				print("At debug")
 				for ((top, right, bottom, left), name) in zip(boxes, names):
 					# draw the predicted face name on the image
 					cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
 					y = top - 15 if top - 15 > 15 else top + 15
 					cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
 					# display the image to our screen
+					print("Show frame")
 					cv2.imshow("Frame", frame)
+					print("After show frame")
 					key = cv2.waitKey(1) & 0xFF
 					if key == ord("q"): break # if the `q` key was pressed, break from the loop
 					fps.update() # update the FPS counter
+		fps.stop()
 		if debug:
-			 # stop the timer and display FPS information
-			fps.stop()
+			# stop the timer and display FPS information
 			print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
 			print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 			# do a bit of cleanup
 			cv2.destroyAllWindows()
 			vs.stop()
 
-		return set.union(set(names), set(self.validUsers))# detected users
+		return set(names) & set(self.validUsers) # detected users
