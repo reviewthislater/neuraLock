@@ -3,25 +3,34 @@ from Recognizers.VoiceRecognizer import VoiceRecognizer
 from Recognizers.FaceRecognizer import FaceRecognizer
 from Recognizers.utilities import utilities
 from scipy.io.wavfile import read
+from time import sleep
 import numpy as np
 import sys
 import argparse
+from gpiozero import Servo, Button
 
-lockAngle = 180
-unlockAngle = 90
-state = "unlocked"
+servo = Servo(17, frame_width=20/100)
+lockButton = Button(18)
+servo.value = -1
+sleep(1)
+servo.value = None
+sleep(1)
 
-def unlock():
-#    if state == "locked": moveServoToUnlockAngle
-    state = "unlocked"
-    print("State: ", state)
-    return
+def unlock(state): 
+	servo.value = 1
+	sleep(2)
+	servo.value=None
+	state = "unlocked"
+	print("State: ", state)
+	return state
 
-def lock():
-#    if state == "unlocked": moveServoToLockAngle
-    state = "locked"
-    print("State: ",state)
-    return
+def lock(state):
+	servo.value = -1
+	sleep(2)
+	servo.value = None
+	state = "locked"
+	print("State: ",state)
+	return state
 
 def testVoiceRecognizer(vr):
     testSignal = read(sys.path[0] + "/Clip-3.wav")[1]
@@ -52,7 +61,7 @@ def driver():
 	args = ap.parse_args()
 
 	validUsers = args.valid_users
-
+	state = "locked"
 
 	if args.authentication_model == "both" or args.authentication_model == "face":
 		fr = FaceRecognizer(validUsers ,detectionMethod="hog", encodings=args.face_model)
@@ -79,13 +88,15 @@ def driver():
 				userSet = set(recognizedFaces) & set(recognizedVoice) & set(validUsers)
 				if len(userSet) == 1:
 					bothAuthenticated = True
-					unlock()
-			"""
-            while state == "unlocked":
-                if lock button pressed:
-                    lock()
-                    bothAuthenticated = False
-			"""
+					state = unlock(state)
+		
+			while state == "unlocked":
+				if lockButton.is_pressed:
+					state = lock(state)
+					bothAuthenticated = False
+					data, vs, fps = fr.setup()
+					sleep(4)
+					
 	elif args.authentication_model == "voice":
 		voiceAuthenticated = False
 		while True:
@@ -97,13 +108,13 @@ def driver():
 				userSet = set(recognizedVoice) & set(validUsers)
 				if len(userSet) == 1:
 					voiceAuthenticated = True
-					unlock()
-			"""
-            while state == "unlocked":
-                if lock button pressed:
-                    lock()
-                    voiceAuthenticated = False
-			"""
+					state = unlock(state)
+			
+			while state == "unlocked":
+				if lockButton.is_pressed:
+					state = lock(state)
+					voiceAuthenticated = False
+		
 	elif args.authentication_model == "face":
 		faceAuthenticated = False
 		while True:
@@ -116,13 +127,15 @@ def driver():
 				print("UserSet: ", userSet)
 				if len(userSet) == 1:
 					faceAuthenticated = True
-					unlock()
-			"""
-            while state == "unlocked":
-                if lock button pressed:
-                    lock()
-                    faceAuthenticated = False
-			"""
+					state = unlock(state)
+			
+			while state == "unlocked":
+				if lockButton.is_pressed:
+					state = lock(state)
+					faceAuthenticated = False
+					data, vs, fps = fr.setup()
+					sleep(4)
+					
 if __name__ == "__main__": driver()
 
 #./controller.py -ad "AudioData" -fd "ImageData" -vm "voiceModel.bin" -fm "imageEncodings.bin" -lv -am both -vu Alex Dave

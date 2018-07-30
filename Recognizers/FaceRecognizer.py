@@ -23,7 +23,7 @@ class FaceRecognizer(object):
 		images = [] # images with exactly one face
 		imagePaths = [] # paths to all the images
 		validPaths = [] # paths to images with only 1 face detected
-		imageDirectory = sys.path[0] + "/" + rootDirectory # looks for the root directory relative to where the script was run because python needs absolute paths (add to sys.path for relative paths)
+		imageDirectory = rootDirectory # looks for the root directory relative to where the script was run because python needs absolute paths (add to sys.path for relative paths)
 		# Grab image paths
 		for label in os.listdir(imageDirectory): # for each folder in the image directory
 		    for image in os.listdir(imageDirectory + "/" + label): # for each file in each folder
@@ -72,7 +72,7 @@ class FaceRecognizer(object):
 	def run(self, data, vs, fps, debug=False):
 		continousPredictions = 0
 	    # loop over frames from the video file stream
-		while continousPredictions <=3:
+		while continousPredictions <= 3:
 			frame = vs.read() # grab the frame from the threaded video stream
 			frame = imutils.resize(frame, width=500) # resize to 500px (to speedup processing)
 			gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # convert the input frame from (1) BGR to grayscale (for face detection)
@@ -86,7 +86,7 @@ class FaceRecognizer(object):
 			names = []
 	    		# loop over the facial embeddings
 			for encoding in encodings:
-				matches = fr.compare_faces(data["encodings"], encoding) # attempt to match each face in the input image to our known encodings
+				matches = fr.compare_faces(data["encodings"], encoding, tolerance=0.45) # attempt to match each face in the input image to our known encodings
 				name = "Unknown"
 
 	    			# check to see if we have found a match
@@ -114,7 +114,6 @@ class FaceRecognizer(object):
 			else: continousPredictions = 0
 
 			if debug:
-				print("At debug")
 				for ((top, right, bottom, left), name) in zip(boxes, names):
 					# draw the predicted face name on the image
 					cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
@@ -132,6 +131,10 @@ class FaceRecognizer(object):
 			print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 			# do a bit of cleanup
 			cv2.destroyAllWindows()
-			vs.stop()
-
+	
+		vs.stream.release()
+		sleep(1)
+		vs.stop()
+		sleep(1)
+		
 		return set(names) & set(self.validUsers) # detected users
