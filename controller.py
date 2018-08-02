@@ -33,17 +33,6 @@ def lock(state):
 	print("State: ",state)
 	return state
 
-def testVoiceRecognizer(vr):
-    testSignal = read(sys.path[0] + "/Clip-3.wav")[1]
-    testRate = [44100]
-    prediction, confidence = vr.predict(testSignal, testRate)
-    print(vr.names, prediction)
-    print("Prediction: " + vr.names[prediction] + "    Confidence: ", confidence)
-    testSignal = read(sys.path[0] + "/tim.wav")[1]
-    testRate = [44100]
-    prediction, confidence = vr.predict(testSignal, testRate)
-    print(vr.names, prediction)
-    print("Prediction: " + vr.names[prediction] + "    Confidence: ", confidence)
 
 def driver():
 	ap = argparse.ArgumentParser(
@@ -82,7 +71,7 @@ def driver():
 			trainRates = np.array([audio[0] for audio in trainData]) # Grab the sampling rate
 			trainSignals = np.array([audio[1] for audio in trainData]) # Grab the signals themselves
 			trainLoader = vr.preprocessAudio(trainSignals, trainRates, loader=True, targets=trainLabels)
-			vr.train(trainLoader, epochs=300, debug=False)
+			vr.trainNetwork(trainLoader, epochs=25, debug=True)
 
 	if args.authentication_model == "both":
 		bothAuthenticated = False
