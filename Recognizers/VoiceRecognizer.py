@@ -12,13 +12,23 @@ import torch.nn.functional as F
 import torch.utils.data as utils
 torch.manual_seed(1)
 
-
 # https://pytorch.org/docs/stable/nn.html
 class VoiceRecognizer(nn.Module):
 
     def __init__(self, numClasses, validUsers, names=[], optimizer=None, criterion=nn.CrossEntropyLoss(),
                     savedModelPath="voiceModel.bin",
                     audioDirectory="AudioData", unlockPhrase=""):
+        """
+        input numClasses: integer for the number of classes for classification
+        input validUsers: list of strings of valid users for unlocking the safe
+        input optimizer: optimizer used for training (don't set this here set
+                         this after creating the object and before calling trainNetwork)
+        input criterion: criterion for the loss function
+        input savedModelPath: path where to save/load the model to/from
+        input audioDirectory: path where the folders containing training audio can be found
+        input unlockPhrase: recognized word must match this phrase, if the unlockPhrase is not set the
+                            recognizer will not utilize this authentication method
+        """
         super(VoiceRecognizer, self).__init__() # calling nn.module.__init__()
         self.dtype = torch.float
         self.device = torch.device("cpu")
@@ -51,6 +61,13 @@ class VoiceRecognizer(nn.Module):
         self.fc = nn.Linear(285, numClasses)
 
     def forward(self, x):
+        """
+        input x: single or multiple signals in a torch Tensor
+
+        output out: torchTensor containing index and prediction information
+                    of varying size depending on how many signals were input
+        Pass the signal through the network and return the output
+        """
         out = self.layer1(x)
         out = self.layer2(out)
         out = self.layer3(out)
@@ -58,18 +75,62 @@ class VoiceRecognizer(nn.Module):
         out = self.fc(out)
         return out
 
-    def loadModel(self): self.load_state_dict(torch.load(self.savedModelPath))
+    def loadModel(self):
+        """
+        Loads the model weights from the savedModelPath
+        """
+        self.load_state_dict(torch.load(self.savedModelPath))
 
-    def saveModel(self): torch.save(self.state_dict(), self.savedModelPath)
+    def saveModel(self):
+        """
+        Saves the model weights to the savedModelPath
+        """
+        torch.save(self.state_dict(), self.savedModelPath)
 
-    def train(self, trainLoader=None, epochs=1000, debug=True):
-        self.train = True
-        totalSteps = len(trainLoader)
+    def __log(self, logger, loss, epoch, i, accuracy):
+        """
+        input logger: logger object
+        input loss: loss from the criterion of the training
+        input epoch: number for current epoch of training
+        input i: Step number for this epoch
+        input accuracy: Accuracy of last batch size
+        Logs parameters during a training run for use with tensorboard
+        """
+        # 1. Log scalar values (scalar summary)
+        info = { 'loss': loss.item(), 'accuracy': accuracy.item() }
+
+        for tag, value in info.items():
+            logger.scalar_summary(tag, value, epoch*i+i+1)
+
+        # 2. Log values and gradients of the parameters (histogram summary)
+        for tag, value in self.named_parameters():
+            tag = tag.replace('.', '/')
+            logger.histo_summary(tag, value.data.cpu().numpy(), epoch*i+i+1)
+            logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), epoch*i+i+1)
+
+
+    def trainNetwork(self, trainLoader=None, epochs=1000, debug=True):
+        """
+        input trainLoader: DataLoader object either manually created or from using createDataLoader for training set
+        input epochs: number of times to pass over the dataset
+        input debug: boolean for debug output
+
+        Trains the network and saves the model to savedModelPath.
+        If debug is set to true than it will output progress and also perform logging for viewing in tensorboardX
+        """
+        if debug:
+            from logger import Logger # only import here since it wont be used anywhere else and only under debug condition
+            logger = Logger('./logs') # create the logger object
+
+        self.train = True # enter training mode, this changes how certain modules will behave in the layers ex. batchnorm1d
+        totalSteps = len(trainLoader) # Determine total number of training steps in the batch
         for epoch in range(epochs):
                 for i, (signals, labels) in enumerate(trainLoader):
+                    if i == 0 and debug: logger.logNetwork(self) #
                     signals = signals.to(self.device)
                     labels = labels.to(self.device)
                     signals = signals.unsqueeze_(1) # 1 input channel (frequency Mags)
+
                     # Forward pass
                     outputs = self.forward(signals)
                     loss = self.criterion(outputs,labels.to(torch.long))
@@ -78,12 +139,25 @@ class VoiceRecognizer(nn.Module):
                     loss.backward()
                     self.optimizer.step()
 
+
+
                     if debug and (i+1) % 5 == 0:
                         print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
                                 .format(epoch+1, epochs, i+1, totalSteps, loss.item()))
+                        # Compute accuracy
+                        _, argmax = torch.max(outputs, 1)
+                        accuracy = (labels.to(torch.long) == argmax.squeeze()).float().mean()
+                        self.__log(logger,loss, epoch, i, accuracy)
+
         self.saveModel()
 
     def test(self, testLoader):
+        """
+        input testLoader: Dataloader object containing the test audio and targets
+
+        Goes through the test set and counts number of correct predictions
+        Prints accuracy to terminal
+        """
         self.train = False
         with torch.no_grad():
             correct = 0
@@ -101,48 +175,70 @@ class VoiceRecognizer(nn.Module):
 
 
     def predict(self, signal):
-        self.train = False
-        signal = torch.Tensor(signal).unsqueeze(1)
-        signal = signal.to(self.device)
-        with torch.no_grad():
+        """
+        input signal: torch tensor of shape (batchsize, numFrequencyMags)
+
+        Take in the signal and add a dummy axis
+        Run the signal through the network
+        Grab the two highest predictions
+        Grab confidence level for highest prediction
+        If predicted user is valid user and above confidence threshold return users name and confidence
+        Else return "Unknown" and confidence
+        """
+        self.train = False # set training mode to fals (will change behavior of some parts of the network like BatchNorm1d)
+        signal = torch.Tensor(signal).unsqueeze(1) # add the dummy axis
+        signal = signal.to(self.device) # put the signal onto the device
+        with torch.no_grad(): # don't autograd when predicting
             outputs = self.forward(signal)
             prediction = torch.sort(outputs.data)
-            highestPrediction = prediction[0][0][-1].item()
-            secHighestPrediction = prediction[0][0][-2].item()
+            # grab the two most confident predictions
+            highestPrediction = prediction[0][0][-1].item() # grab highest prediction
+            secHighestPrediction = prediction[0][0][-2].item() # grab second highest prediction
             if highestPrediction > 0 and secHighestPrediction <= 0: confidence = 100
             elif highestPrediction > 0 and secHighestPrediction > 0: confidence = (1-(secHighestPrediction/highestPrediction))*100
             else: confidence = 0
-            prediction = prediction[1][0][-1].item()
-        return self.names[prediction] if confidence >= 70 else "Unknown", confidence
+            prediction = prediction[1][0][-1].item() # grab the target number for the most confident prediction
+        if confidence >= 70 and self.names[prediction] in self.validUsers:
+            return self.names[prediction], confidence
+        else: return  "Unknown", confidence
 
 
     def run(self):
         """
         output: string, predicted name
 
-        Records audio to a temporary file
-        Reads in that audio
-        Process the audio
-        Predict on the audio
-        Return the prediction if its above the confidence level set in predict otherwise return unknown
+        Attempt 3 times:
+            Records audio to a temporary file
+            Reads in that audio
+            Process the audio
+            Predict on the audio
+            Return the prediction if its above the confidence level set in predict
+        Return "Unknown"
         """
-        audioRate = np.array([44100])
+        audioRate = np.array([44100]) # we will use this data rate for audio recording
         for i in range(3):
-            wordRec = False
+            wordRec = False # set word wecognized to false at the start of each run
             # Turn on red led
-            utilities.recordAudioToFile(".tempRecording", recordlength=5, rate=audioRate.item(), chunksize=1024)
+            utilities.recordAudioToFile(".tempRecording", recordlength=5, rate=audioRate.item(), chunksize=1024) # record the audio
             # Turn on orange led
-            signal = np.array([read(".tempRecording.wav")[1]])
-            if self.unlockPhrase != "": wordRec = self.recognizeWord() == self.unlockPhrase
-            os.remove(".tempRecording") # this will prevent of previous audio data
-            freqSignal = self.preprocessAudio(signal, audioRate)
-            prediction, confidence = self.predict(freqSignal)
+            signal = np.array([read(".tempRecording.wav")[1]]) # read in the data
+            if self.unlockPhrase != "": wordRec = self.recognizeWord() # if an unlock phrase has been set check if recognized word matches unlockPhrase
+            os.remove(".tempRecording") # this will prevent replaying of previous audio data
+            freqSignal = self.preprocessAudio(signal, audioRate) # clean audio and convert to frequency domain
+            prediction, confidence = self.predict(freqSignal) # predict on the frequency magnitudes of the audio
             if prediction in self.validUsers and self.unlockPhrase == "": return prediction
             elif prediction in self.validUsers and self.unlockPhrase != "" and wordRec: return prediction
         #turn off orange led and turn on red led
         return "Unknown"
 
     def recognizeWord(self):
+        """
+        output isWord: true if recognized word matches unlockPhrase otherwise false
+
+        Create recognizer object
+        Load in the audio from the temp file path
+        Recognize audio and return isWord
+        """
         r = sr.Recognizer()
         with sr.AudioFile(".tempRecording.wav") as source: audio = r.record(source)
         try:
@@ -156,6 +252,12 @@ class VoiceRecognizer(nn.Module):
 
 
     def preprocessAudio(self, signals, rates, loader=False, targets=None):
+        """
+        input signals: 1d numpy array of 1d numpy arrays containing the signals
+        input rates: 1d numpy array of 1d numpy arrays containing the signal rates
+        input loader: boolean as to whether the output should be a DataLoader of the processed audio
+        input targets: 1d np array of targets. Only needed if loader is true
+        """
         signals = utilities.convertToMono(signals)
         frequencies, frequencyMags = utilities.frequencyTransform(signals, rates)
         frequencyMags.tolist()
@@ -166,8 +268,19 @@ class VoiceRecognizer(nn.Module):
 
 
     def createDataLoader(self, signals, targets):
-        npTargets = []
-        for target in targets: npTargets.append(np.array(target, dtype="long"))
+        """
+        input signals: 1d numpy array of 1d numpy arrays containing the preprocessed signals
+        input targets: 1d numpy array of 1d numpy arrays containing the respective targets
+
+        output: Dataloader object containing the signals and targets information with batchSize of 5
+
+        Create list of 1d numpy arrays targets to mend datatype
+        Create tensors of signals and targets data
+        Create tensor dataset with these signals and targets
+        Create a dataloader with the resulting tensor dataset
+        """
+        npTargets = targets.tolist()
+        #for target in targets: npTargets.append(np.array(target, dtype="long"))
         signalTensor = torch.stack([torch.Tensor(i) for i in signals])
         targetTensor = torch.stack([torch.Tensor(i) for i in npTargets])
         signalDataset = utils.TensorDataset(signalTensor, targetTensor)
