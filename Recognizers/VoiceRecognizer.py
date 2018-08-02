@@ -50,8 +50,6 @@ class VoiceRecognizer(nn.Module):
         )
         self.fc = nn.Linear(285, numClasses)
 
-
-
     def forward(self, x):
         out = self.layer1(x)
         out = self.layer2(out)
@@ -115,22 +113,32 @@ class VoiceRecognizer(nn.Module):
             elif highestPrediction > 0 and secHighestPrediction > 0: confidence = (1-(secHighestPrediction/highestPrediction))*100
             else: confidence = 0
             prediction = prediction[1][0][-1].item()
-            print(self.names[prediction], confidence)
         return self.names[prediction] if confidence >= 70 else "Unknown", confidence
 
 
-
     def run(self):
+        """
+        output: string, predicted name
+
+        Records audio to a temporary file
+        Reads in that audio
+        Process the audio
+        Predict on the audio
+        Return the prediction if its above the confidence level set in predict otherwise return unknown
+        """
         audioRate = np.array([44100])
         for i in range(3):
+            wordRec = False
             # Turn on red led
             utilities.recordAudioToFile(".tempRecording", recordlength=5, rate=audioRate.item(), chunksize=1024)
             # Turn on orange led
             signal = np.array([read(".tempRecording.wav")[1]])
-            print(signal.shape)
+            if self.unlockPhrase != "": wordRec = self.recognizeWord() == self.unlockPhrase
+            os.remove(".tempRecording") # this will prevent of previous audio data
             freqSignal = self.preprocessAudio(signal, audioRate)
             prediction, confidence = self.predict(freqSignal)
-            if prediction in self.validUsers: return prediction
+            if prediction in self.validUsers and self.unlockPhrase == "": return prediction
+            elif prediction in self.validUsers and self.unlockPhrase != "" and wordRec: return prediction
         #turn off orange led and turn on red led
         return "Unknown"
 
@@ -157,7 +165,6 @@ class VoiceRecognizer(nn.Module):
         else: return frequencyMags
 
 
-
     def createDataLoader(self, signals, targets):
         npTargets = []
         for target in targets: npTargets.append(np.array(target, dtype="long"))
@@ -165,51 +172,3 @@ class VoiceRecognizer(nn.Module):
         targetTensor = torch.stack([torch.Tensor(i) for i in npTargets])
         signalDataset = utils.TensorDataset(signalTensor, targetTensor)
         return utils.DataLoader(dataset=signalDataset, batch_size=5)
-
-
-
-
-if __name__ == "__main__":
-    epochs = 250
-    retrain = False
-    trainPaths, trainLabels, trainNames = utilities.getAudioFilePaths(audioDirectory="../AudioData")
-    testPaths, testLabels, testNames = utilities.getAudioFilePaths(audioDirectory="../TestAudioData")
-    trainData = [read(audioFile) for audioFile in trainPaths] # Read in the audioData
-    trainRates = np.array([audio[0] for audio in trainData]) # Grab the sampling rate
-    trainSignals = np.array([audio[1] for audio in trainData]) # Grab the signals themselves
-    trainSignals = utilities.convertToMono(trainSignals)
-    testData = [read(audioFile) for audioFile in testPaths] # Read in the audioData
-    testRates = np.array([audio[0] for audio in testData]) # Grab the sampling rate
-    testSignals = np.array([audio[1] for audio in testData]) # Grab the signals themselves
-    testSignals = utilities.convertToMono(testSignals)
-    trainFrequencies, trainFrequencyMags = utilities.frequencyTransform(trainSignals, trainRates)
-    testFrequencies, testFrequencyMags = utilities.frequencyTransform(testSignals, trainRates)
-    clippedTrainMags = []
-    clippedTestMags = []
-
-    for i, mag in enumerate(trainFrequencyMags):
-        rightIndex = np.where(trainFrequencies[i]>=300)[0][0]
-        #clippedTrainMags.append(trainFrequencyMags[i][:rightIndex])
-        clippedTrainMags.append(trainFrequencyMags[i][:])
-    for i, mag in enumerate(testFrequencyMags):
-        rightIndex = np.where(testFrequencies[i]>=300)[0][0]
-        #clippedTestMags.append(testFrequencyMags[i][:rightIndex])
-        clippedTestMags.append(testFrequencyMags[i][:])
-    # Loss and optimizer
-    cnn = VoiceCNN(numClasses=len(trainNames), names=trainNames)
-    criterion = nn.CrossEntropyLoss()
-
-    cnn.optimizer = optimizer
-    cnn.criterion = criterion
-    trainLoader = cnn.createDataLoader(clippedTrainMags, trainLabels)
-    testLoader = cnn.createDataLoader(clippedTestMags, testLabels)
-    if retrain: cnn.train(trainLoader, epochs=epochs)
-    else: cnn.load()
-    #cnn.test(testLoader)
-    sigData = [read("../Clip-4.wav")]
-    signal = np.array([audio[1] for audio in sigData])
-    rate = np.array([audio[0] for audio in sigData])
-    signal = utilities.convertToMono(signal)
-    sigFreqs, sigFreqMags = utilities.frequencyTransform(signal, rate)
-    predictedUser, confidence = cnn.predict(sigFreqMags)
-    print(predictedUser, confidence)
