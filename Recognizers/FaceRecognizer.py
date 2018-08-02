@@ -12,38 +12,20 @@ import warnings
 
 class FaceRecognizer(object):
 
-	def __init__(self, validUsers, detectionMethod="hog", encodings="imageEncodings.bin", detector=cv2.CascadeClassifier("lbpcascade_frontalface.xml")):
+	def __init__(self, validUsers, detectionMethod="hog", imageDirectory=None, encodings="imageEncodings.bin", detector=cv2.CascadeClassifier("lbpcascade_frontalface.xml")):
 		self.detectionMethod = detectionMethod # Default to hog which is 128d feature extraction and linear svm
 		self.encodings = encodings #pickled encodings, should only need to encode once
 		self.detector = detector # lbp is faster than haar cascade
 		assert type(validUsers) == type([])
 		self.validUsers = validUsers # list of validUsers
-
-	def getImageData(self, rootDirectory="ImageData"):
-		images = [] # images with exactly one face
-		imagePaths = [] # paths to all the images
-		validPaths = [] # paths to images with only 1 face detected
-		imageDirectory = rootDirectory # looks for the root directory relative to where the script was run because python needs absolute paths (add to sys.path for relative paths)
-		# Grab image paths
-		for label in os.listdir(imageDirectory): # for each folder in the image directory
-		    for image in os.listdir(imageDirectory + "/" + label): # for each file in each folder
-		       imagePaths.append(imageDirectory + "/" + label + "/" + image) #add to the image pathh
-		# Determine valid images (exactly one face needs to be detected to be a valid image)
-		for imagePath in imagePaths:
-		    original = cv2.imread(imagePath)
-		    image = original #if opencv else original
-		    faces = detector.detectMultiScale(image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)) # change scale factor here if faces aren't being detected, it relates to how far the person is from the camera
-		    if len(faces) != 1: warnings.warn("Not using an image from the train data set because exactly one face was not detected")
-		    else: validPaths.append(imagePath)
-		return validPaths
+		self.imageDirectory = imageDirectory
 
 
 	def encodeImages(self):
 	    	print("[INFO] quantifying faces...")
-	    	imagePaths, labels = getImageData() #  grab the paths to the input images in our dataset
+	    	imagePaths, labels = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
 	    	knownEncodings = []
 	    	knownNames = []
-
 	    	for (i, imagePath) in enumerate(imagePaths): # loop over the image paths
 	    		print("[INFO] processing image {}/{}".format(i + 1,len(imagePaths)))
 	    		name = imagePath.split(os.path.sep)[-2] # extract the person name from the image path
@@ -60,14 +42,17 @@ class FaceRecognizer(object):
 	    	f.write(pickle.dumps(data)) # dump the facial encodings + names to disk
 	    	f.close()
 
-	def setup(self):
+	def loadEncodings(self):
 		print("[INFO] loading encodings + face detector...")
 		data = pickle.loads(open(self.encodings, "rb").read()) # load the known faces and embeddings along with lbp for face detection
 		print("[INFO] starting video stream...")
+		return data
+
+	def setup(self):
 		vs = VideoStream(src=0).start() # initialize the video stream and allow the camera sensor to warm up
 		time.sleep(2.0)
 		fps = FPS().start() # start the FPS counter
-		return data, vs, fps
+		return vs, fps
 
 	def run(self, data, vs, fps, debug=False):
 		continousPredictions = 0
@@ -131,10 +116,10 @@ class FaceRecognizer(object):
 			print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 			# do a bit of cleanup
 			cv2.destroyAllWindows()
-	
+
 		vs.stream.release()
 		sleep(1)
 		vs.stop()
 		sleep(1)
-		
+
 		return set(names) & set(self.validUsers) # detected users
