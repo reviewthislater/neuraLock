@@ -3,171 +3,136 @@ import numpy as np
 import sys
 import os
 from scipy.io.wavfile import read
-from scipy import stats
-from scipy.signal import lfilter
-from sklearn.preprocessing import normalize
 import speech_recognition as sr
-import pickle
-from array import array
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-import pickle
 from .utilities import utilities
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import torch.utils.data as utils
+torch.manual_seed(1)
 
 
-class VoiceRecognizer(object):
+# https://pytorch.org/docs/stable/nn.html
+class VoiceRecognizer(nn.Module):
 
-    def __init__(self, model=None, names=[], unlockPhrase="unlock", savedModelPath="voiceModel.bin", audioDirectory="AudioData", validUsers=[]):
-        self.model = model
-        self.names = names
-        self.unlockPhrase = unlockPhrase
+    def __init__(self, numClasses, validUsers, names=[], optimizer=None, criterion=nn.CrossEntropyLoss(),
+                    savedModelPath="voiceModel.bin",
+                    audioDirectory="AudioData", unlockPhrase=""):
+        super(VoiceRecognizer, self).__init__() # calling nn.module.__init__()
+        self.dtype = torch.float
+        self.device = torch.device("cpu")
         self.savedModelPath = savedModelPath
-        self.audioDirectory = audioDirectory
+        self.names = names
+        self.criterion = criterion
+        self.optimizer = None #optimizer generally needs VoiceCNNInstance.parameters to initialize
+        self.unlockPhrase = unlockPhrase
         self.validUsers = validUsers
 
-    def predict(self, signal, rate):
-        if self.model is None: raise ValueError("The model has not been fit yet.")
-        signal = [np.array(self.__preprocessAudio(None,signal)[1])]
-        signalFeatures = self.__extractFeatures(signal, rate)
-        predictionProbabilities = self.model.predict_proba(signalFeatures)
-        confidence = np.amax(predictionProbabilities)
-        prediction = self.names[np.argmax(predictionProbabilities)]
-        return prediction, confidence
+        self.layer1 = nn.Sequential(
+            nn.Conv1d(1,10,kernel_size=3,stride=1,padding=2),
+            nn.InstanceNorm1d(10),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3, stride=2)
+        )
+        self.layer2 = nn.Sequential(
+            nn.Conv1d(10,70,kernel_size=3,stride=1,padding=2),
+            nn.BatchNorm1d(70),
+            nn.Softshrink(),
+            nn.Dropout(),
+            nn.AvgPool1d(kernel_size=2,stride=2)
+        )
+        self.layer3 = nn.Sequential(
+            nn.Conv1d(70,3,kernel_size=5,stride=1,padding=2),
+            nn.InstanceNorm1d(3),
+            nn.PReLU(),
+            nn.MaxPool1d(kernel_size=4,stride=2)
+        )
+        self.fc = nn.Linear(285, numClasses)
 
-    def __getAudioFilePaths(self, audioDirectory=None):
-        if audioDirectory is None: audioDirectory = self.audioDirectory
-        audioFilePaths = []
-        labels = []
-        for i, label in enumerate(os.listdir(audioDirectory)): # for each folder in the audio directory
-            self.names.append(label) # grab the names of the people since all scikit models classify on numbers not strings
-            for audio in os.listdir(audioDirectory + "/" + label): # for each file in each folder
-                audioFilePaths.append(audioDirectory + "/" + label + "/" + audio) #add to the audio paths
-                labels.append(i) # append the integer label
-        return audioFilePaths, labels
 
-    def train(self):
-        self.names = []
-        audioFilePaths, targets = self.__getAudioFilePaths()
-        audioRates, audioSignals = self.__preprocessAudio(audioFilePaths)
-        audioFeatures = self.__extractFeatures(audioSignals, audioRates)
-        self.model = DecisionTreeClassifier(n_jobs=-1)
-        #self.model = KNeighborsClassifier(n_jobs=-1, n_neighbors=3)
-        self.model.fit(audioFeatures, targets)
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = out.reshape(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
+    def loadModel(self): self.load_state_dict(torch.load(self.savedModelPath))
+
+    def saveModel(self): torch.save(self.state_dict(), self.savedModelPath)
+
+    def train(self, trainLoader=None, epochs=1000, debug=True):
+        self.train = True
+        totalSteps = len(trainLoader)
+        for epoch in range(epochs):
+                for i, (signals, labels) in enumerate(trainLoader):
+                    signals = signals.to(self.device)
+                    labels = labels.to(self.device)
+                    signals = signals.unsqueeze_(1) # 1 input channel (frequency Mags)
+                    # Forward pass
+                    outputs = self.forward(signals)
+                    loss = self.criterion(outputs,labels.to(torch.long))
+                    # Bakcwards and optimize
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+
+                    if debug and (i+1) % 5 == 0:
+                        print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
+                                .format(epoch+1, epochs, i+1, totalSteps, loss.item()))
         self.saveModel()
 
-    def saveModel(self):
-        pickleFile = open(self.savedModelPath, "wb")
-        data = {"model": self.model, "names": self.names, "unlockPhrase": self.unlockPhrase}
-        pickleFile.write(pickle.dumps(data))
-        pickleFile.close()
+    def test(self, testLoader):
+        self.train = False
+        with torch.no_grad():
+            correct = 0
+            total = 0
+            for signals, labels in testLoader:
+                signals = signals.to(self.device)
+                labels = labels.to(self.device)
+                signals.unsqueeze_(1)
+                outputs = self.forward(signals)
+                _, predicted = torch.max(outputs.data, 1)
+                labels = labels.to(torch.long)
+                total += labels.size(0)
+                correct += (predicted==labels).sum().item()
+            print('Test Accuracy of the model on the {0} test signals: {1} %'.format(total, 100 * correct / total))
 
-    def loadModel(self):
-        pickleFile = open(self.savedModelPath, "rb")
-        data = pickle.loads(pickleFile.read())
-        self.model = data["model"]
-        self.names = data["names"]
-        self.unlockPhrase = data["unlockPhrase"]
-        pickleFile.close()
 
+    def predict(self, signal):
+        self.train = False
+        signal = torch.Tensor(signal).unsqueeze(1)
+        signal = signal.to(self.device)
+        with torch.no_grad():
+            outputs = self.forward(signal)
+            prediction = torch.sort(outputs.data)
+            highestPrediction = prediction[0][0][-1].item()
+            secHighestPrediction = prediction[0][0][-2].item()
+            if highestPrediction > 0 and secHighestPrediction <= 0: confidence = 100
+            elif highestPrediction > 0 and secHighestPrediction > 0: confidence = (1-(secHighestPrediction/highestPrediction))*100
+            else: confidence = 0
+            prediction = prediction[1][0][-1].item()
+            print(self.names[prediction], confidence)
+        return self.names[prediction] if confidence >= 70 else "Unknown", confidence
 
-    def __filterNoise(self, audioSignals):
-        n = 15  # the larger n is, the smoother curve will be
-        b = [1.0 / n] * n
-        a = 1
-        for i, audio in enumerate(audioSignals): audioSignals[i] = lfilter(b,a,audio)
-        return audioSignals
-
-    def __convertToMono(self, audioSignals):
-        if audioSignals[0].shape[1] == 1: return audioSignals # Data is already mono so lets just return it
-        elif audioSignals[0].shape[1] == 2:
-            for i, audio in enumerate(audioSignals):
-                if audioSignals.shape[0] == 1: return np.array((audio.sum(axis=1) / 2).reshape(1,-1))
-                audioSignals[i] = (audio.sum(axis=1) / 2) # Convert data to mono and return it
-            return audioSignals
-        else: raise Exception("Whoah you discovered %d dimensional audio" % audioSignals[0].shape[1])
-
-    def __clipAudio(self, audioSignals):
-        for i, audio in enumerate(audioSignals):
-            amplitudeThreshold = np.percentile(audio, 0.3)
-            ampCondition =  np.where(audio>=amplitudeThreshold)[0] # Going to be used twice so store it for now
-            leftIndex = ampCondition[0] # Grab the first index above this threshold
-            rightIndex = ampCondition[-1] # Grab the last index above this threshold
-            if audioSignals.shape[0] == 1: return np.array(audioSignals[i][leftIndex:rightIndex])
-            audioSignals[i] = audioSignals[i][leftIndex:rightIndex] # Update the previous array in place with a decreased size of the original
-
-        return audioSignals
-
-    def __preprocessAudio(self, audioFilePaths=None, audioSignals=None):
-         audioRates = [] # This will remain empty if we pass in the signal because we shoudl already know the rate
-         if audioSignals is None:
-             audioData = [read(audioFile) for audioFile in audioFilePaths] # Read in the audioData
-             audioRates = np.array([audio[0] for audio in audioData]) # Grab the sampling rate
-             audioSignals = np.array([audio[1] for audio in audioData]) # Grab the signals themselves
-         else: audioSignals = np.array([audioSignals]) # preprocessing is built to take in an input of a numpy array containing numpy arrays
-         # Take the audio, convert it to mono, then filter it and then clip it
-         audioSignals = self.__convertToMono(audioSignals)
-         audioSignals = self.__filterNoise(audioSignals)
-         audioSignals = self.__clipAudio(audioSignals)
-         return audioRates, audioSignals
 
 
     def run(self):
-        audioRate = [44100]
-        audioChunksize = 1024
+        audioRate = np.array([44100])
         for i in range(3):
             # Turn on red led
-            utilities.recordAudioToFile(".tempRecording", rate=audioRate[0], chunksize=audioChunksize)
+            utilities.recordAudioToFile(".tempRecording", recordlength=5, rate=audioRate.item(), chunksize=1024)
             # Turn on orange led
-            signal = read(".tempRecording.wav")[1]
-            prediction, confidence = self.predict(signal, audioRate)
-            if confidence >= 0.7 and prediction in self.validUsers: return prediction
+            signal = np.array([read(".tempRecording.wav")[1]])
+            print(signal.shape)
+            freqSignal = self.preprocessAudio(signal, audioRate)
+            prediction, confidence = self.predict(freqSignal)
+            if prediction in self.validUsers: return prediction
+        #turn off orange led and turn on red led
         return "Unknown"
-
-
-    def __extractFeatures(self,audioSignals, audioRates):
-        """
-        input audioSignals: numpy array of 1d numpy arrays containing sound data
-        input audioRates: numpy array of 1d scalars with the rates of the corresponding audio
-        output featureData: a numpy array of shape (samples, numFeatures) containing data for a model to fit to
-
-        Extracts features from the sound data
-        Transforms the signals to the  domain
-        Extracts features from the frequency domain sound data
-        Returns the extracted features for each sample as a numpy matrix
-        """
-        audioFrequencies, audioMagnitudes = utilities.frequencyTransform(audioSignals, audioRates)
-        meanAmps = []
-        stdAmps = []
-        audioLengths = []
-        lowestFrequencies = []
-        highestFrequencies = []
-        meanMags = []
-        stdMags = []
-        skewMags = []
-        kurtosisMags = []
-        for i, audio in enumerate(audioSignals):
-            meanAmps.append(np.mean(audio))
-            stdAmps.append(np.std(audio))
-            audioLengths.append(audio.size/audioRates[i]) # Useful if implementing unlock keyphrase
-        for i, audioMag in enumerate(audioMagnitudes):
-            magThreshold = np.percentile(audioMag, 0.3) # Grab the nth percentile for threshold
-            magCondition = np.where(audioMag>=magThreshold)[0] #
-            leftIndex = magCondition[0] # Grab the first index above this threshold
-            rightIndex = magCondition[-1] # Grab the last index above this threshold
-            lowestFrequencies.append(audioFrequencies[i][leftIndex])
-            highestFrequencies.append(audioFrequencies[i][rightIndex])
-            meanMags.append(np.mean(audioMag))
-            stdMags.append(np.std(audioMag))
-            skewMags.append(stats.skew(audioMag))
-            kurtosisMags.append(stats.kurtosis(audioMag))
-
-        featureData = np.array(meanAmps).reshape(-1,1)
-        for feature in [stdAmps, audioLengths, lowestFrequencies, highestFrequencies,
-                        meanMags, stdMags, skewMags, kurtosisMags]:
-                        featureData = np.hstack([featureData, np.array(feature).reshape(-1,1)])
-        return featureData
 
     def recognizeWord(self):
         r = sr.Recognizer()
@@ -180,3 +145,71 @@ class VoiceRecognizer(object):
         except sr.RequestError as e:
             print("Sphinx error; {0}".format(e))
             return False
+
+
+    def preprocessAudio(self, signals, rates, loader=False, targets=None):
+        signals = utilities.convertToMono(signals)
+        frequencies, frequencyMags = utilities.frequencyTransform(signals, rates)
+        frequencyMags.tolist()
+        if loader:
+            if targets is not None: return self.createDataLoader(frequencyMags, targets)
+            else: raise Exception("Cannot create DataLoader object without the target vector")
+        else: return frequencyMags
+
+
+
+    def createDataLoader(self, signals, targets):
+        npTargets = []
+        for target in targets: npTargets.append(np.array(target, dtype="long"))
+        signalTensor = torch.stack([torch.Tensor(i) for i in signals])
+        targetTensor = torch.stack([torch.Tensor(i) for i in npTargets])
+        signalDataset = utils.TensorDataset(signalTensor, targetTensor)
+        return utils.DataLoader(dataset=signalDataset, batch_size=5)
+
+
+
+
+if __name__ == "__main__":
+    epochs = 250
+    retrain = False
+    trainPaths, trainLabels, trainNames = utilities.getAudioFilePaths(audioDirectory="../AudioData")
+    testPaths, testLabels, testNames = utilities.getAudioFilePaths(audioDirectory="../TestAudioData")
+    trainData = [read(audioFile) for audioFile in trainPaths] # Read in the audioData
+    trainRates = np.array([audio[0] for audio in trainData]) # Grab the sampling rate
+    trainSignals = np.array([audio[1] for audio in trainData]) # Grab the signals themselves
+    trainSignals = utilities.convertToMono(trainSignals)
+    testData = [read(audioFile) for audioFile in testPaths] # Read in the audioData
+    testRates = np.array([audio[0] for audio in testData]) # Grab the sampling rate
+    testSignals = np.array([audio[1] for audio in testData]) # Grab the signals themselves
+    testSignals = utilities.convertToMono(testSignals)
+    trainFrequencies, trainFrequencyMags = utilities.frequencyTransform(trainSignals, trainRates)
+    testFrequencies, testFrequencyMags = utilities.frequencyTransform(testSignals, trainRates)
+    clippedTrainMags = []
+    clippedTestMags = []
+
+    for i, mag in enumerate(trainFrequencyMags):
+        rightIndex = np.where(trainFrequencies[i]>=300)[0][0]
+        #clippedTrainMags.append(trainFrequencyMags[i][:rightIndex])
+        clippedTrainMags.append(trainFrequencyMags[i][:])
+    for i, mag in enumerate(testFrequencyMags):
+        rightIndex = np.where(testFrequencies[i]>=300)[0][0]
+        #clippedTestMags.append(testFrequencyMags[i][:rightIndex])
+        clippedTestMags.append(testFrequencyMags[i][:])
+    # Loss and optimizer
+    cnn = VoiceCNN(numClasses=len(trainNames), names=trainNames)
+    criterion = nn.CrossEntropyLoss()
+
+    cnn.optimizer = optimizer
+    cnn.criterion = criterion
+    trainLoader = cnn.createDataLoader(clippedTrainMags, trainLabels)
+    testLoader = cnn.createDataLoader(clippedTestMags, testLabels)
+    if retrain: cnn.train(trainLoader, epochs=epochs)
+    else: cnn.load()
+    #cnn.test(testLoader)
+    sigData = [read("../Clip-4.wav")]
+    signal = np.array([audio[1] for audio in sigData])
+    rate = np.array([audio[0] for audio in sigData])
+    signal = utilities.convertToMono(signal)
+    sigFreqs, sigFreqMags = utilities.frequencyTransform(signal, rate)
+    predictedUser, confidence = cnn.predict(sigFreqMags)
+    print(predictedUser, confidence)
