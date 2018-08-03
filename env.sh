@@ -30,7 +30,12 @@ touch ~/.config/matplotlib/matplotlibrc
 echo "backend: TkAgg"> ~/.config/matplotlib/matplotlibrc
 echo "Validating dlib and face_recognition install"
 python3 -c "import face_recognition" || echo "Face recognition install failed"
+echo "Install pytorch dependencies"
+sudo apt install libopenblas-dev
+sudo pip3 install scikit-build
+sudo pip3 install ninja
 echo "Install pytorch"
-sudo pip3 install pytorch
+sudo pip3 install torch-raspi
+sudo pip3 install torchvision
 echo "Finished install successfully"
 exit 0
