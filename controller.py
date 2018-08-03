@@ -55,8 +55,8 @@ def driver():
 
 	if args.authentication_model == "both" or args.authentication_model == "face":
 		fr = FaceRecognizer(validUsers ,detectionMethod="hog", encodings=args.face_model, imageDirectory=args.face_dataset)
-		if not args.load_face_model: fr.encodeImages()
-		data = fr.loadEncodings()
+		if args.load_face_model: fr.loadEncodings()
+		else args.load_face_model: fr.encodeImages()
 		vs, fps = fr.setup()
 
 	if args.authentication_model == "both" or args.authentication_model == "voice":
@@ -78,7 +78,7 @@ def driver():
 		while True:
 			while not bothAuthenticated:
                 # Turn on orange led for video
-				recognizedFaces = fr.run(data, vs, fps, debug=False)
+				recognizedFaces = fr.run(vs, fps, debug=False)
                 # Turn on green led for video
 				recognizedVoice = [vr.run()]
                 #if recognizedVoice != "Unknown": Turn on green led for audio
@@ -125,7 +125,7 @@ def driver():
 		while True:
 			while not faceAuthenticated:
                 # Turn on orange led for video
-				recognizedFaces = fr.run(data, vs, fps, debug=False)
+				recognizedFaces = fr.run(vs, fps, debug=False)
                 # Turn on green led for video
 				if len(recognizedFaces) == 1:
 					# status light goes green

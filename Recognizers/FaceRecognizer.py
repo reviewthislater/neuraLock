@@ -19,42 +19,60 @@ class FaceRecognizer(object):
 		assert type(validUsers) == type([])
 		self.validUsers = validUsers # list of validUsers
 		self.imageDirectory = imageDirectory
-
+		self.encodingData = None
 
 	def encodeImages(self):
-	    	print("[INFO] quantifying faces...")
-	    	imagePaths, labels = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
-	    	knownEncodings = []
-	    	knownNames = []
-	    	for (i, imagePath) in enumerate(imagePaths): # loop over the image paths
-	    		print("[INFO] processing image {}/{}".format(i + 1,len(imagePaths)))
-	    		name = imagePath.split(os.path.sep)[-2] # extract the person name from the image path
-	    		image = cv2.imread(imagePath) # load image
-	    		rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # convert to rgb
-	    		faces = fr.face_locations(rgb, model=detectionMethod) # detect box around face
-	    		encodings = fr.face_encodings(rgb, faces) # compute the facial embedding for the face
-	    		for encoding in encodings: # loop over the encodings
-	    			knownEncodings.append(encoding) # add each encoding to knownEncodings
-	    			knownNames.append(name) # add each name to knownNames
-	    	print("[INFO] serializing encodings...")
-	    	data = {"encodings": knownEncodings, "names": knownNames}
-	    	f = open(self.encodings, "wb")
-	    	f.write(pickle.dumps(data)) # dump the facial encodings + names to disk
-	    	f.close()
+		"""
+		Get image data
+		Perform feature	extraction on the data
+		Save the model of the extracted features and their respective targets
+		"""
+	    print("[INFO] quantifying faces...")
+	    imagePaths, labels = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
+	    knownEncodings = []
+	    knownNames = []
+	    for (i, imagePath) in enumerate(imagePaths): # loop over the image paths
+	    	print("[INFO] processing image {}/{}".format(i + 1,len(imagePaths)))
+	    	name = imagePath.split(os.path.sep)[-2] # extract the person name from the image path
+	    	image = cv2.imread(imagePath) # load image
+	    	rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # convert to rgb
+	    	faces = fr.face_locations(rgb, model=detectionMethod) # detect box around face
+	    	encodings = fr.face_encodings(rgb, faces) # compute the facial embedding for the face
+	    	for encoding in encodings: # loop over the encodings
+	    		knownEncodings.append(encoding) # add each encoding to knownEncodings
+	    		knownNames.append(name) # add each name to knownNames
+	    print("[INFO] serializing encodings...")
+	    self.encodingData = {"encodings": knownEncodings, "names": knownNames}
+	    f = open(self.encodings, "wb")
+	    f.write(pickle.dumps(self.encodingData)) # dump the facial encodings + names to disk
+	    f.close()
 
 	def loadEncodings(self):
+		"""
+		output data:
+		Load the encodings for the model
+		"""
 		print("[INFO] loading encodings + face detector...")
-		data = pickle.loads(open(self.encodings, "rb").read()) # load the known faces and embeddings along with lbp for face detection
-		print("[INFO] starting video stream...")
-		return data
+		self.encodingData = pickle.loads(open(self.encodings, "rb").read()) # load the known faces and embeddings along with lbp for face detection
+
 
 	def setup(self):
-		vs = VideoStream(src=0).start() # initialize the video stream and allow the camera sensor to warm up
-		time.sleep(2.0)
+		"""
+		output vs: video stream object that has been started and warmed up
+		output fps: fps counting object
+
+		Request the VideoStream resource and start it
+		Sleep to allow the camera to warm up
+		Create the fps counter and start it
+		Return the video stream object and the fps counter object
+		"""
+		print("[INFO] starting video stream...")
+		vs = VideoStream(src=0).start() # initialize the video stream
+		time.sleep(2.0) # sleep to let camera warm up
 		fps = FPS().start() # start the FPS counter
 		return vs, fps
 
-	def run(self, data, vs, fps, debug=False):
+	def run(self, vs, fps, debug=False):
 		continousPredictions = 0
 	    # loop over frames from the video file stream
 		while continousPredictions <= 3:
@@ -71,7 +89,7 @@ class FaceRecognizer(object):
 			names = []
 	    		# loop over the facial embeddings
 			for encoding in encodings:
-				matches = fr.compare_faces(data["encodings"], encoding, tolerance=0.45) # attempt to match each face in the input image to our known encodings
+				matches = fr.compare_faces(self.encodingData["encodings"], encoding, tolerance=0.45) # attempt to match each face in the input image to our known encodings
 				name = "Unknown"
 
 	    			# check to see if we have found a match
@@ -85,7 +103,7 @@ class FaceRecognizer(object):
 	    				# loop over the matched indexes and maintain a count for
 	    				# each recognized face face
 					for i in matchedIdxs:
-						name = data["names"][i]
+						name = self.encodingData["names"][i]
 						counts[name] = counts.get(name, 0) + 1
 
 	    				# determine the recognized face with the largest number
