@@ -14,13 +14,21 @@
 
 ## Hardware
 [Raspberry Pi 3 Model B](https://www.amazon.com/gp/product/B01LPLPBS8/ref=oh_aui_detailpage_o00_s00?ie=UTF8&psc=1): $35.99
+
 [Samsung Evo Micro SD](https://www.amazon.com/Samsung-MicroSDXC-Adapter-MB-ME64GA-AM/dp/B06XX29S9Q/ref=sr_1_3?s=electronics&ie=UTF8&qid=1533447856&sr=1-3&keywords=sd+card+samsung&dpID=41pa5T0NGKL&preST=_SX300_QL70_&dpSrc=srch): $17.99
+
 [Keyboard w/ trackpad](https://www.amazon.com/Rii-Wireless-Keyboard-Touchpad-Control/dp/B00I5SW8MC/ref=sr_1_5?s=electronics&ie=UTF8&qid=1533447912&sr=1-5&keywords=mini+wireless+keyboard&dpID=41qFpeX3-cL&preST=_SY300_QL70_&dpSrc=srch): $15.95
+
 [ELP Mini USB Camera](https://www.amazon.com/gp/product/B01DRJXDEA/ref=oh_aui_detailpage_o01_s00?ie=UTF8&psc=1): $29.99
+
 [Lavalier Mini USB Microphone](https://www.amazon.com/gp/product/B074BLM973/ref=oh_aui_detailpage_o01_s00?ie=UTF8&psc=1): $14.99
+
 [5000 mAh External Battery](https://www.amazon.com/gp/product/B00MWU1GGI/ref=oh_aui_detailpage_o01_s00?ie=UTF8&psc=1): $11.99
+
 [Assorted LEDS](https://www.amazon.com/Lights-Emitting-Assortment-Arduino-300-Pack/dp/B00UWBJM0Q/ref=sr_1_4?s=hi&ie=UTF8&qid=1533447484&sr=1-4&keywords=leds&th=1): $9.99
+
 [Tactile Switches](https://www.amazon.com/Uxcell-a15111200ux1613-Momentary-Tactile-Terminal/dp/B019DCWTSQ/ref=sr_1_17?s=hi&ie=UTF8&qid=1533447743&sr=1-17&keywords=tactile+switch): $7.46
+
 3d printer and filament: $??.??
 
 #### Total Cost: 144.35 + ??.??
@@ -61,14 +69,14 @@ For both image and audio data the folder structure should look like
 ```
 
 ### Gathering Face Training Data
-I used about 8 subjects from the Yale Faces Extended B training set, the larger the number of subjects used the more robust the classifier will be.
+I used about 8 subjects from the [Yale Faces Extended B](http://vision.ucsd.edu/~leekc/ExtYaleDatabase/ExtYaleB.html) training set, the larger the number of subjects used the more robust the classifier will be. Also make sure to include pictures of any users you would like to be able to be validated for entering the safe, for better results take pictures with the same camera that will be used for prediction.
 
 ### Gathering Audio Training Data
 I used about 5 subjects from the [VoxForge dataset](http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/Audio/Original/), it is useful to utilize training data with the same sampling rate as your microphone. It is also useful to get training data from the same individual recorded at different times, something like [Angus-CJG](http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/Audio/Original/48kHz_16bit/Angus-20080320-cjg.tgz)
-and [Angus-NDD](http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/Audio/Original/48kHz_16bit/Angus-20080320-ndd.tgz) the wav files from both of these archives would go under one folder named Angus in the AudioData root directory.
+and [Angus-NDD](http://www.repository.voxforge1.org/downloads/SpeechCorpus/Trunk/Audio/Original/48kHz_16bit/Angus-20080320-ndd.tgz) the wav files from both of these archives would go under one folder named Angus in the AudioData root directory. It is helpful to also record empty noise with about 10-20 samples 5 seconds each. This will classify noise with no speaker as this dummy subject. Finally make sure to record audio of any user you would like to be able to be validated for entering the safe, for better results record the audio with the same microphone that will be used for prediction.
 
 ### Wiring The Hardware
-![WiringDiagram](https://github.com/alexanderepstein/neuraLock/blob/master/Wiring.png)
+<img src="https://github.com/alexanderepstein/neuraLock/blob/master/Wiring.png" width=500px height=500px>
 
 The pin layout will be treated as BCM, to see what that looks like visit [here](https://gpiozero.readthedocs.io/en/stable/recipes.html#pin-numbering)
 
