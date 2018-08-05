@@ -4,7 +4,7 @@ from imutils.video import VideoStream, FPS
 import face_recognition as fr
 import imutils
 import pickle
-import time
+from  time import sleep
 import cv2
 import os
 import sys
@@ -27,25 +27,25 @@ class FaceRecognizer(object):
 		Perform feature	extraction on the data
 		Save the model of the extracted features and their respective targets
 		"""
-	    print("[INFO] quantifying faces...")
-	    imagePaths, labels = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
-	    knownEncodings = []
-	    knownNames = []
-	    for (i, imagePath) in enumerate(imagePaths): # loop over the image paths
-	    	print("[INFO] processing image {}/{}".format(i + 1,len(imagePaths)))
-	    	name = imagePath.split(os.path.sep)[-2] # extract the person name from the image path
-	    	image = cv2.imread(imagePath) # load image
-	    	rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # convert to rgb
-	    	faces = fr.face_locations(rgb, model=detectionMethod) # detect box around face
-	    	encodings = fr.face_encodings(rgb, faces) # compute the facial embedding for the face
-	    	for encoding in encodings: # loop over the encodings
-	    		knownEncodings.append(encoding) # add each encoding to knownEncodings
-	    		knownNames.append(name) # add each name to knownNames
-	    print("[INFO] serializing encodings...")
-	    self.encodingData = {"encodings": knownEncodings, "names": knownNames}
-	    f = open(self.encodings, "wb")
-	    f.write(pickle.dumps(self.encodingData)) # dump the facial encodings + names to disk
-	    f.close()
+		print("[INFO] quantifying faces...")
+		imagePaths, labels = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
+		knownEncodings = []
+		knownNames = []
+		for (i, imagePath) in enumerate(imagePaths): # loop over the image paths
+			print("[INFO] processing image {}/{}".format(i + 1,len(imagePaths)))
+			name = imagePath.split(os.path.sep)[-2] # extract the person name from the image path
+			image = cv2.imread(imagePath) # load image
+			rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # convert to rgb
+			faces = fr.face_locations(rgb, model=detectionMethod) # detect box around face
+			encodings = fr.face_encodings(rgb, faces) # compute the facial embedding for the face
+			for encoding in encodings: # loop over the encodings
+				knownEncodings.append(encoding) # add each encoding to knownEncodings
+				knownNames.append(name) # add each name to knownNames
+		print("[INFO] serializing encodings...")
+		self.encodingData = {"encodings": knownEncodings, "names": knownNames}
+		f = open(self.encodings, "wb")
+		f.write(pickle.dumps(self.encodingData)) # dump the facial encodings + names to disk
+		f.close()
 
 	def loadEncodings(self):
 		"""
@@ -68,7 +68,7 @@ class FaceRecognizer(object):
 		"""
 		print("[INFO] starting video stream...")
 		vs = VideoStream(src=0).start() # initialize the video stream
-		time.sleep(2.0) # sleep to let camera warm up
+		sleep(2.0) # sleep to let camera warm up
 		fps = FPS().start() # start the FPS counter
 		return vs, fps
 
