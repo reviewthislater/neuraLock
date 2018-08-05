@@ -8,16 +8,77 @@ import numpy as np
 import sys
 import argparse
 import torch.optim as optim
-from gpiozero import Servo, Button
+from gpiozero import Servo, Button, LED
 
-servo = Servo(17, frame_width=20/100)
+servo = Servo(17)
+safeGreenStatus = LED(21)
+safeOrangeStatus = LED(20)
+safeRedStatus = LED(16, initial_value=True)
+voiceGreenStatus = LED(5)
+voiceOrangeStatus = LED(6)
+voiceRedStatus = LED(12, initial_value=True)
+faceGreenStatus = LED(13)
+faceOrangeStatus = LED(19)
+faceRedStatus = LED(26, initial_value=True)
 lockButton = Button(18)
 servo.value = -1
-sleep(1)
+sleep(2)
 servo.value = None
-sleep(1)
+sleep(2)
+
+def setSafeStatus(status):
+	if status == "red":
+		safeOrangeStatus.off()
+		safeGreenStatus.off()
+		safeRedStatus.on()
+	elif status == "green":
+		safeRedStatus.off()
+		safeOrangeStatus.off()
+		safeGreenStatus.on()
+	elif status == "orange":
+		safeRedStatus.off()
+		safeGreenStatus.off()
+		safeOrangeStatus.on()
+
+def setVoiceStatus(status):
+	if status == "red":
+		voiceOrangeStatus.off()
+		voiceGreenStatus.off()
+		voiceRedStatus.on()
+	elif status == "green":
+		voiceRedStatus.off()
+		voiceOrangeStatus.off()
+		voiceGreenStatus.on()
+	elif status == "orange":
+		voiceRedStatus.off()
+		voiceGreenStatus.off()
+		voiceOrangeStatus.on()
+	elif status == "off":
+		voiceRedStatus.off()
+		voiceGreenStatus.off()
+		voiceOrangeStatus.off()
+
+
+def setFaceStatus(status):
+	if status == "red":
+		faceOrangeStatus.off()
+		faceGreenStatus.off()
+		faceRedStatus.on()
+	elif status == "green":
+		faceRedStatus.off()
+		faceOrangeStatus.off()
+		faceGreenStatus.on()
+	elif status == "orange":
+		faceRedStatus.off()
+		faceGreenStatus.off()
+		faceOrangeStatus.on()
+	elif status == "off":
+		faceRedStatus.off()
+		faceGreenStatus.off()
+		faceOrangeStatus.off()
 
 def unlock(state):
+	setSafeStatus("green")
 	servo.value = 1
 	sleep(2)
 	servo.value=None
@@ -26,6 +87,7 @@ def unlock(state):
 	return state
 
 def lock(state):
+	setSafeStatus("red")
 	servo.value = -1
 	sleep(2)
 	servo.value = None
@@ -56,7 +118,7 @@ def driver():
 	if args.authentication_model == "both" or args.authentication_model == "face":
 		fr = FaceRecognizer(validUsers ,detectionMethod="hog", encodings=args.face_model, imageDirectory=args.face_dataset)
 		if args.load_face_model: fr.loadEncodings()
-		else args.load_face_model: fr.encodeImages()
+		else: fr.encodeImages()
 		vs, fps = fr.setup()
 
 	if args.authentication_model == "both" or args.authentication_model == "voice":
@@ -71,73 +133,74 @@ def driver():
 			trainRates = np.array([audio[0] for audio in trainData]) # Grab the sampling rate
 			trainSignals = np.array([audio[1] for audio in trainData]) # Grab the signals themselves
 			trainLoader = vr.preprocessAudio(trainSignals, trainRates, loader=True, targets=trainLabels)
-			vr.trainNetwork(trainLoader, epochs=25, debug=True)
+			vr.trainNetwork(trainLoader, epochs=300, debug=True)
 
 	if args.authentication_model == "both":
-		bothAuthenticated = False
 		while True:
+			bothAuthenticated = False
+			setSafeStatus("orange")
 			while not bothAuthenticated:
-                # Turn on orange led for video
+				setFaceStatus("orange")
 				recognizedFaces = fr.run(vs, fps, debug=False)
-                # Turn on green led for video
+				setFaceStatus("green")
+				setVoiceStatus("orange")
 				recognizedVoice = [vr.run()]
-                #if recognizedVoice != "Unknown": Turn on green led for audio
-                #else: continue
+				if recognizedVoice != "Unknown":  setVoiceStatus("green")
+				else:
+					setVoiceStatus("red")
+					continue
 				userSet = set(recognizedFaces) & set(recognizedVoice) & set(validUsers) # make sure we are returning the same valid user
 				if len(userSet) == 1:
-					# status light goes green
 					bothAuthenticated = True
 					state = unlock(state)
 
 			while state == "unlocked":
 				if lockButton.is_pressed:
-					# status light goes red
 					state = lock(state)
-					bothAuthenticated = False
+					setVoiceStatus("red")
+					setFaceStatus("red")
 					vs, fps = fr.setup()
-					sleep(4)
+					sleep(5)
 
 	elif args.authentication_model == "voice":
-		# all face leds go off
-		voiceAuthenticated = False
+		setFaceStatus("off")
 		while True:
+			voiceAuthenticated = False
+			setSafeStatus("orange")
 			while not voiceAuthenticated:
+				setVoiceStatus("orange")
 				recognizedVoice = [vr.run()]
 				userSet = set(recognizedVoice) & set(validUsers)
 
 				if len(userSet) == 1:
-					#green led for voice goes on
-					# status light goes green
+					setVoiceStatus("green")
 					voiceAuthenticated = True
 					state = unlock(state)
 
-
 			while state == "unlocked":
 				if lockButton.is_pressed:
-					# status light goes red
 					state = lock(state)
-					voiceAuthenticated = False
-
+					setVoiceStatus("red")
 
 	elif args.authentication_model == "face":
-		# all voice leds go off
-		faceAuthenticated = False
+		setVoiceStatus("off")
 		while True:
+			faceAuthenticated=False
+			setSafeStatus("orange")
 			while not faceAuthenticated:
-                # Turn on orange led for video
+				setFaceStatus("orange")
 				recognizedFaces = fr.run(vs, fps, debug=False)
-                # Turn on green led for video
+				setFaceStatus("green")
 				if len(recognizedFaces) == 1:
-					# status light goes green
 					faceAuthenticated = True
 					state = unlock(state)
 
 			while state == "unlocked":
 				if lockButton.is_pressed:
 					state = lock(state)
-					faceAuthenticated = False
+					setFaceStatus("red")
 					vs, fps = fr.setup()
-					sleep(4)
+					sleep(5)
 
 if __name__ == "__main__": driver()
 
