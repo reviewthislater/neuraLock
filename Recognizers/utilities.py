@@ -22,7 +22,7 @@ class utilities(object):
         engine.stop()
 
     @staticmethod
-    def recordAudioToFile(filename, recordlength=5, rate=44100, channels=2, chunksize=1024, format=pyaudio.paInt32):
+    def recordAudioToFile(filename, recordlength=3, rate=44100, channels=2, chunksize=1024, format=pyaudio.paInt32):
         CHUNK = chunksize
         FORMAT = format
         CHANNELS = channels
@@ -38,7 +38,7 @@ class utilities(object):
         print("[INFO] recording")
         frames = []
         for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-            data = stream.read(CHUNK)
+            data = stream.read(CHUNK, exception_on_overflow=False)
             frames.append(data)
         print("[INFO] done recording")
         stream.stop_stream()
@@ -323,7 +323,7 @@ class utilities(object):
         filePaths = []
         labels = []
         names = []
-        for i, label in enumerate(os.listdir(directory)): # for each folder in the audio directory
+        for i, label in enumerate(sorted(os.listdir(directory))): # for each folder in the audio directory, need to sort because diff platforms return in diff order
             names.append(label) # grab the names of the people since all scikit models classify on numbers not strings
             for filename in os.listdir(directory + "/" + label): # for each file in each folder
                 filePaths.append(directory + "/" + label + "/" + filename) #add to the audio paths
