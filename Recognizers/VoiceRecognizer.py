@@ -109,7 +109,7 @@ class VoiceRecognizer(nn.Module):
             logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), epoch*i+i+1)
 
 
-    def trainNetwork(self, trainLoader=None, epochs=1000, debug=True):
+    def trainNetwork(self, trainLoader=None, epochs=1000, debug=True, log=False):
         """
         input trainLoader: DataLoader object either manually created or from using createDataLoader for training set
         input epochs: number of times to pass over the dataset
@@ -118,7 +118,7 @@ class VoiceRecognizer(nn.Module):
         Trains the network and saves the model to savedModelPath.
         If debug is set to true than it will output progress and also perform logging for viewing in tensorboardX
         """
-        if debug:
+        if log:
             from logger import Logger # only import here since it wont be used anywhere else and only under debug condition
             logger = Logger('./logs') # create the logger object
 
@@ -126,7 +126,7 @@ class VoiceRecognizer(nn.Module):
         totalSteps = len(trainLoader) # Determine total number of training steps in the batch
         for epoch in range(epochs):
                 for i, (signals, labels) in enumerate(trainLoader):
-                    if i == 0 and debug: logger.logNetwork(self) #
+                    if i == 0 and log: logger.logNetwork(self) #
                     signals = signals.to(self.device)
                     labels = labels.to(self.device)
                     signals = signals.unsqueeze_(1) # 1 input channel (frequency Mags)
@@ -139,11 +139,10 @@ class VoiceRecognizer(nn.Module):
                     loss.backward()
                     self.optimizer.step()
 
-
-
                     if debug and (i+1) % 5 == 0:
                         print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
                                 .format(epoch+1, epochs, i+1, totalSteps, loss.item()))
+                    if log:
                         # Compute accuracy
                         _, argmax = torch.max(outputs, 1)
                         accuracy = (labels.to(torch.long) == argmax.squeeze()).float().mean()
@@ -198,7 +197,9 @@ class VoiceRecognizer(nn.Module):
             elif highestPrediction > 0 and secHighestPrediction > 0: confidence = (1-(secHighestPrediction/highestPrediction))*100
             else: confidence = 0
             prediction = prediction[1][0][-1].item() # grab the target number for the most confident prediction
-        if confidence >= 70 and self.names[prediction] in self.validUsers:
+            print(self.names, prediction)
+            print(self.names[prediction], confidence)
+        if confidence >= 90 and self.names[prediction] in self.validUsers:
             return self.names[prediction], confidence
         else: return  "Unknown", confidence
 
@@ -215,15 +216,15 @@ class VoiceRecognizer(nn.Module):
             Return the prediction if its above the confidence level set in predict
         Return "Unknown"
         """
-        audioRate = np.array([44100]) # we will use this data rate for audio recording
+        audioRate = np.array([48000]) # we will use this data rate for audio recording
         for i in range(3):
             wordRec = False # set word wecognized to false at the start of each run
             # Turn on red led
-            utilities.recordAudioToFile(".tempRecording", recordlength=5, rate=audioRate.item(), chunksize=1024) # record the audio
+            utilities.recordAudioToFile(".tempRecording", recordlength=5, rate=audioRate.item(), chunksize=512) # record the audio
             # Turn on orange led
             signal = np.array([read(".tempRecording.wav")[1]]) # read in the data
             if self.unlockPhrase != "": wordRec = self.recognizeWord() # if an unlock phrase has been set check if recognized word matches unlockPhrase
-            os.remove(".tempRecording") # this will prevent replaying of previous audio data
+            os.remove(".tempRecording.wav") # this will prevent replaying of previous audio data
             freqSignal = self.preprocessAudio(signal, audioRate) # clean audio and convert to frequency domain
             prediction, confidence = self.predict(freqSignal) # predict on the frequency magnitudes of the audio
             if prediction in self.validUsers and self.unlockPhrase == "": return prediction
@@ -279,7 +280,7 @@ class VoiceRecognizer(nn.Module):
         Create tensor dataset with these signals and targets
         Create a dataloader with the resulting tensor dataset
         """
-        npTargets = targets.tolist()
+        npTargets = map(np.array, targets)
         #for target in targets: npTargets.append(np.array(target, dtype="long"))
         signalTensor = torch.stack([torch.Tensor(i) for i in signals])
         targetTensor = torch.stack([torch.Tensor(i) for i in npTargets])
