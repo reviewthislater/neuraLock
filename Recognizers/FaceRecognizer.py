@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # import the necessary packages
 from imutils.video import VideoStream, FPS
+from imutils import resize
 import face_recognition as fr
-import imutils
 import pickle
 from  time import sleep
 import cv2
 import os
-import sys
 from .utilities import utilities
 
 class FaceRecognizer(object):
@@ -54,7 +53,6 @@ class FaceRecognizer(object):
 
 	def loadEncodings(self):
 		"""
-		output data:
 		Load the encodings for the model
 		"""
 		print("[INFO] loading encodings + face detector...")
@@ -77,18 +75,36 @@ class FaceRecognizer(object):
 		fps = FPS().start() # start the FPS counter
 		return vs, fps
 
-	def run(self, vs, fps, debug=False):
+	def run(self, vs, fps=None, debug=False):
+		"""
+		input vs: video stream object for capturing images
+		input fps: fps counting object for debug use (only needed when debug is True)
+		input debug: boolean for printing information to the terminal
+
+		output validNameSet: a set of the names of recognized faces that are in the valid user set
+
+		Read in the frame
+		Detect the faces
+		Encode the faces
+		Compare the faces
+		Predict the name of the person
+		Check any person in image is in valid users
+			if true: Increment continuous predictious
+			else: Set continuous predictions to 0
+		Run the above lines in loop until continous predictions is 3
+		Return the valid user set intersected with the recognized user set
+		"""
 		continousPredictions = 0
 	    # loop over frames from the video file stream
 		while continousPredictions <= 3:
 			frame = vs.read() # grab the frame from the threaded video stream
-			frame = imutils.resize(frame, width=500) # resize to 500px (to speedup processing)
+			frame = resize(frame, width=500) # resize to 500px (to speedup processing)
 			gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # convert the input frame from (1) BGR to grayscale (for face detection)
 			rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # (2) from BGR to RGB (for face recognition)
-			rects = self.detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)) 	# detect faces in the grayscale frame
-                # OpenCV returns bounding box coordinates in (x, y, w, h) order
-	    		# but we need them in (top, right, bottom, left) order, so we
-	    		# need to do a bit of reordering
+			rects = self.detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)) # detect faces in the grayscale frame
+            # OpenCV returns bounding box coordinates in (x, y, w, h) order
+	    	# but we need them in (top, right, bottom, left) order, so we
+	    	# need to do a bit of reordering
 			boxes = [(y, x + w, y + h, x) for (x, y, w, h) in rects]
 			encodings = fr.face_encodings(rgb, boxes) # compute the facial embeddings for each face bounding box
 			names = []
@@ -116,16 +132,16 @@ class FaceRecognizer(object):
 					if key == ord("q"): break # if the `q` key was pressed, break from the loop
 				cv2.imshow("Frame", frame) # display the image to our screen
 				fps.update() # update the FPS counter
-		fps.stop()
+
 		if debug:
 			# stop the timer and display FPS information
+			fps.stop()
 			print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
 			print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 			cv2.destroyAllWindows() # do a bit of cleanup
 
-		vs.stop()
-		sleep(1)
-		vs.stream.release()
-		sleep(1)
-
+		vs.stop() # stops the video stream thread
+		sleep(1) # Give the thread some time to stop
+		vs.stream.release() # releases the camera resource
+		sleep(1) # Give the camera some time to release
 		return set(names) & set(self.validUsers) # detected users

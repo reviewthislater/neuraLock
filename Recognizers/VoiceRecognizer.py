@@ -197,8 +197,6 @@ class VoiceRecognizer(nn.Module):
             elif highestPrediction > 0 and secHighestPrediction > 0: confidence = (1-(secHighestPrediction/highestPrediction))*100
             else: confidence = 0
             prediction = prediction[1][0][-1].item() # grab the target number for the most confident prediction
-            print(self.names, prediction)
-            print(self.names[prediction], confidence)
         if confidence >= 90 and self.names[prediction] in self.validUsers:
             return self.names[prediction], confidence
         else: return  "Unknown", confidence
@@ -241,9 +239,9 @@ class VoiceRecognizer(nn.Module):
         Recognize audio and return isWord
         """
         r = sr.Recognizer()
-        with sr.AudioFile(".tempRecording.wav") as source: audio = r.record(source)
+        with sr.AudioFile(".tempRecording.wav") as source: audio = r.record(source) # grab the audio
         try:
-            return r.recognize_sphinx(audio) == self.unlockPhrase
+            return r.recognize_sphinx(audio) == self.unlockPhrase # recognize audio and compare to unlockPhrase
         except sr.UnknownValueError:
             print("Sphinx could not understand audio")
             return False
@@ -259,10 +257,10 @@ class VoiceRecognizer(nn.Module):
         input loader: boolean as to whether the output should be a DataLoader of the processed audio
         input targets: 1d np array of targets. Only needed if loader is true
         """
-        signals = utilities.convertToMono(signals)
-        frequencies, frequencyMags = utilities.frequencyTransform(signals, rates)
-        frequencyMags.tolist()
-        if loader:
+        signals = utilities.convertToMono(signals) # All signals are converted to mono to speed up CNN
+        frequencies, frequencyMags = utilities.frequencyTransform(signals, rates) # CNN recieves frequency domain signals
+        frequencyMags.tolist() # Create data loader takes in a list
+        if loader: # create a dataloader if a targets array was passed to method else just return the freqMags
             if targets is not None: return self.createDataLoader(frequencyMags, targets)
             else: raise Exception("Cannot create DataLoader object without the target vector")
         else: return frequencyMags
@@ -271,18 +269,17 @@ class VoiceRecognizer(nn.Module):
     def createDataLoader(self, signals, targets):
         """
         input signals: 1d numpy array of 1d numpy arrays containing the preprocessed signals
-        input targets: 1d numpy array of 1d numpy arrays containing the respective targets
+        input targets: 1d numpy array of scalar values containing the respective targets
 
         output: Dataloader object containing the signals and targets information with batchSize of 5
 
-        Create list of 1d numpy arrays targets to mend datatype
+        Manipulate targets datatype
         Create tensors of signals and targets data
         Create tensor dataset with these signals and targets
         Create a dataloader with the resulting tensor dataset
         """
-        npTargets = map(np.array, targets)
-        #for target in targets: npTargets.append(np.array(target, dtype="long"))
-        signalTensor = torch.stack([torch.Tensor(i) for i in signals])
-        targetTensor = torch.stack([torch.Tensor(i) for i in npTargets])
+        npTargets = map(np.array, targets) # convert inner target scalars to single element numpy arrays
+        signalTensor = torch.stack([torch.Tensor(i) for i in signals]) # create a torch tensor from numpy array of numpy arrays
+        targetTensor = torch.stack([torch.Tensor(i) for i in npTargets]) # create a torch tensor from the numpy array of numpy arrays
         signalDataset = utils.TensorDataset(signalTensor, targetTensor)
         return utils.DataLoader(dataset=signalDataset, batch_size=5)

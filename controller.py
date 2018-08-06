@@ -5,7 +5,6 @@ from Recognizers.utilities import utilities
 from scipy.io.wavfile import read
 from time import sleep
 import numpy as np
-import sys
 import argparse
 import torch.optim as optim
 from gpiozero import Servo, Button, LED
