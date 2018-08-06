@@ -24,7 +24,12 @@ class FaceRecognizer(object):
 	def encodeImages(self):
 		"""
 		Get image data
-		Perform feature	extraction on the data
+		Perform feature	extraction on the data		if debug:
+			# stop the timer and display FPS information
+			print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+			print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+			# do a bit of cleanup
+			cv2.destroyAllWindows()
 		Save the model of the extracted features and their respective targets
 		"""
 		print("[INFO] quantifying faces...")
@@ -87,32 +92,17 @@ class FaceRecognizer(object):
 			boxes = [(y, x + w, y + h, x) for (x, y, w, h) in rects]
 			encodings = fr.face_encodings(rgb, boxes) # compute the facial embeddings for each face bounding box
 			names = []
-	    		# loop over the facial embeddings
-			for encoding in encodings:
+			for encoding in encodings: 	# loop over the facial embeddings
 				matches = fr.compare_faces(self.encodingData["encodings"], encoding, tolerance=0.45) # attempt to match each face in the input image to our known encodings
 				name = "Unknown"
-
-	    			# check to see if we have found a match
-				if True in matches:
-	    				# find the indexes of all matched faces then initialize a
-	    				# dictionary to count the total number of times each face
-	    				# was matched
-					matchedIdxs = [i for (i, b) in enumerate(matches) if b]
-					counts = {}
-
-	    				# loop over the matched indexes and maintain a count for
-	    				# each recognized face face
-					for i in matchedIdxs:
+				if True in matches: # check to see if we have found a match
+					matchedIdxs = [i for (i, b) in enumerate(matches) if b] # find the indexes of all matched faces
+					counts = {} # dictionary to count the total number of times each face was matched
+					for i in matchedIdxs: 	# loop over the matched indexes
 						name = self.encodingData["names"][i]
-						counts[name] = counts.get(name, 0) + 1
-
-	    				# determine the recognized face with the largest number
-	    				# of votes (note: in the event of an unlikely tie Python
-	    				# will select first entry in the dictionary)
-					name = max(counts, key=counts.get)
-	    			# update the list of names
-				names.append(name)
-	    			# loop over the recognized faces
+						counts[name] = counts.get(name, 0) + 1 # maintain a count for each recognized face
+					name = max(counts, key=counts.get) # face with largest number of votes
+				names.append(name) 	# update the list of names
 			if any(face in self.validUsers for face in names): continousPredictions += 1
 			else: continousPredictions = 0
 
@@ -122,22 +112,20 @@ class FaceRecognizer(object):
 					cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
 					y = top - 15 if top - 15 > 15 else top + 15
 					cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
-					# display the image to our screen
 					key = cv2.waitKey(1) & 0xFF
 					if key == ord("q"): break # if the `q` key was pressed, break from the loop
-				cv2.imshow("Frame", frame)
+				cv2.imshow("Frame", frame) # display the image to our screen
 				fps.update() # update the FPS counter
 		fps.stop()
 		if debug:
 			# stop the timer and display FPS information
 			print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
 			print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
-			# do a bit of cleanup
-			cv2.destroyAllWindows()
+			cv2.destroyAllWindows() # do a bit of cleanup
 
-		vs.stream.release()
-		sleep(1)
 		vs.stop()
+		sleep(1)
+		vs.stream.release()
 		sleep(1)
 
 		return set(names) & set(self.validUsers) # detected users
