@@ -8,7 +8,7 @@ from  time import sleep
 import cv2
 import os
 import sys
-import warnings
+from .utilities import utilities
 
 class FaceRecognizer(object):
 
@@ -28,7 +28,7 @@ class FaceRecognizer(object):
 		Save the model of the extracted features and their respective targets
 		"""
 		print("[INFO] quantifying faces...")
-		imagePaths, labels = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
+		imagePaths = utilities.getImageData(self.imageDirectory) #  grab the paths to the input images in our dataset
 		knownEncodings = []
 		knownNames = []
 		for (i, imagePath) in enumerate(imagePaths): # loop over the image paths
@@ -36,7 +36,7 @@ class FaceRecognizer(object):
 			name = imagePath.split(os.path.sep)[-2] # extract the person name from the image path
 			image = cv2.imread(imagePath) # load image
 			rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # convert to rgb
-			faces = fr.face_locations(rgb, model=detectionMethod) # detect box around face
+			faces = fr.face_locations(rgb, model=self.detectionMethod) # detect box around face
 			encodings = fr.face_encodings(rgb, faces) # compute the facial embedding for the face
 			for encoding in encodings: # loop over the encodings
 				knownEncodings.append(encoding) # add each encoding to knownEncodings
@@ -123,10 +123,10 @@ class FaceRecognizer(object):
 					y = top - 15 if top - 15 > 15 else top + 15
 					cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
 					# display the image to our screen
-					cv2.imshow("Frame", frame)
 					key = cv2.waitKey(1) & 0xFF
 					if key == ord("q"): break # if the `q` key was pressed, break from the loop
-					fps.update() # update the FPS counter
+				cv2.imshow("Frame", frame)
+				fps.update() # update the FPS counter
 		fps.stop()
 		if debug:
 			# stop the timer and display FPS information

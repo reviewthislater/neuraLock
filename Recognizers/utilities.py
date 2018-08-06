@@ -9,6 +9,8 @@ import pyttsx3
 import wave
 import os
 from scipy.signal import welch
+import warnings
+import cv2
 
 class utilities(object):
 
@@ -276,6 +278,7 @@ class utilities(object):
 
     @staticmethod
     def getImageData(rootDirectory=""):
+        detector = cv2.CascadeClassifier('lbpcascade_frontalface.xml')
         images = [] # images with exactly one face
         imagePaths = [] # paths to all the images
         validPaths = [] # paths to images with only 1 face detected
