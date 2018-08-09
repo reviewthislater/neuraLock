@@ -15,23 +15,25 @@
 ## Hardware
 [Raspberry Pi 3 Model B](https://www.amazon.com/gp/product/B01LPLPBS8/ref=oh_aui_detailpage_o00_s00?ie=UTF8&psc=1): $35.99
 
-[Samsung Evo Micro SD](https://www.amazon.com/Samsung-MicroSDXC-Adapter-MB-ME64GA-AM/dp/B06XX29S9Q/ref=sr_1_3?s=electronics&ie=UTF8&qid=1533447856&sr=1-3&keywords=sd+card+samsung&dpID=41pa5T0NGKL&preST=_SX300_QL70_&dpSrc=srch): $17.99
+[Samsung Evo Micro SD](https://www.amazon.com/Samsung-MicroSDXC-Adapter-MB-ME64GA-AM/dp/B06XX29S9Q): $17.99
 
-[Keyboard w/ trackpad](https://www.amazon.com/Rii-Wireless-Keyboard-Touchpad-Control/dp/B00I5SW8MC/ref=sr_1_5?s=electronics&ie=UTF8&qid=1533447912&sr=1-5&keywords=mini+wireless+keyboard&dpID=41qFpeX3-cL&preST=_SY300_QL70_&dpSrc=srch): $15.95
+[Keyboard w/ trackpad](https://www.amazon.com/Rii-Wireless-Keyboard-Touchpad-Control/dp/B00I5SW8MC): $15.95
 
-[ELP Mini USB Camera](https://www.amazon.com/gp/product/B01DRJXDEA/ref=oh_aui_detailpage_o01_s00?ie=UTF8&psc=1): $29.99
+[Traxxas Servo](https://www.amazon.com/dp/B000XQ3G3E): $26.05
 
-[Lavalier Mini USB Microphone](https://www.amazon.com/gp/product/B074BLM973/ref=oh_aui_detailpage_o01_s00?ie=UTF8&psc=1): $14.99
+[ELP Mini USB Camera](https://www.amazon.com/gp/product/B01DRJXDEA): $29.99
 
-[5000 mAh External Battery](https://www.amazon.com/gp/product/B00MWU1GGI/ref=oh_aui_detailpage_o01_s00?ie=UTF8&psc=1): $11.99
+[Lavalier Mini USB Microphone](https://www.amazon.com/gp/product/B074BLM973): $14.99
 
-[Assorted LEDS](https://www.amazon.com/Lights-Emitting-Assortment-Arduino-300-Pack/dp/B00UWBJM0Q/ref=sr_1_4?s=hi&ie=UTF8&qid=1533447484&sr=1-4&keywords=leds&th=1): $9.99
+[5000 mAh External Battery](https://www.amazon.com/gp/product/B00MWU1GGI): $11.99
 
-[Tactile Switches](https://www.amazon.com/Uxcell-a15111200ux1613-Momentary-Tactile-Terminal/dp/B019DCWTSQ/ref=sr_1_17?s=hi&ie=UTF8&qid=1533447743&sr=1-17&keywords=tactile+switch): $7.46
+[Assorted LEDS](https://www.amazon.com/Lights-Emitting-Assortment-Arduino-300-Pack/dp/B00UWBJM0Q): $9.99
+
+[Tactile Switches](https://www.amazon.com/Uxcell-a15111200ux1613-Momentary-Tactile-Terminal/dp/B019DCWTSQ): $7.46
 
 3d printer and filament: $??.??
 
-#### Total Cost: 144.35 + ??.??
+#### Total Cost: 170.40 + ??.??
 
 All of these parts except for the raspberry pi 3 can be exchanged with similar parts, the provided links provide either the exact or similar hardware I used.
 
@@ -122,6 +124,9 @@ A valid execution of the program might look like
 ./controller.py -ad "AudioData" -fd "ImageData" -vm "voiceModel.bin" -fm "imageEncodings.bin" -lv -am both -vu Alex
 # Execute the program, audio data is located in AudioData, image data is contained in "ImageData", the voice model should be read to/written from "voiceModel.bin", the face encodings should be read to/written from "imageEncodings.bin", load the voice model, authenticate using both voice and face, set Alex as a valid user
 ```
+
+### Current State
+The STLS are not perfectly designed for the hardware, not enough testing was able to be done before confirm the design. However you can (force) the design to work by drilling and hot glue. You can use the STL's as a reference or starting point for what the safe will look like. Hopefully we will have time in the future to perfect the design.
 
 ### Issues
 For any issues please open a new issue in the issue tracker [here](https://github.com/alexanderepstein/neuraLock/issues/new)
