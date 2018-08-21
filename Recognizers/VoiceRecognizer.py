@@ -10,14 +10,13 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.utils.data as utils
-torch.manual_seed(1)
+torch.manual_seed(1) # Keep randomness consistent through different program executions (see how modifications alter the results without worrying about how randomness played a role)
 
 # https://pytorch.org/docs/stable/nn.html
 class VoiceRecognizer(nn.Module):
 
-    def __init__(self, numClasses, validUsers, names=[], optimizer=None, criterion=nn.CrossEntropyLoss(),
-                    savedModelPath="voiceModel.bin",
-                    audioDirectory="AudioData", unlockPhrase=""):
+    def __init__(self, numClasses:int, validUsers:list, names:list=[], optimizer:None=None, criterion:nn.Module=nn.CrossEntropyLoss(),
+                    savedModelPath:str="voiceModel.bin", audioDirectory:str="AudioData", unlockPhrase:str=""):
         """
         input numClasses: integer for the number of classes for classification
         input validUsers: list of strings of valid users for unlocking the safe
@@ -35,7 +34,7 @@ class VoiceRecognizer(nn.Module):
         self.savedModelPath = savedModelPath
         self.names = names
         self.criterion = criterion
-        self.optimizer = None #optimizer generally needs VoiceCNNInstance.parameters to initialize
+        self.optimizer = None # optimizer generally needs VoiceCNNInstance.parameters to initialize
         self.unlockPhrase = unlockPhrase
         self.validUsers = validUsers
 
@@ -56,6 +55,7 @@ class VoiceRecognizer(nn.Module):
             nn.Conv1d(70,3,kernel_size=5,stride=1,padding=2),
             nn.InstanceNorm1d(3),
             nn.PReLU(),
+            nn.Dropout(),
             nn.MaxPool1d(kernel_size=4,stride=2)
         )
         self.fc = nn.Linear(285, numClasses)
@@ -184,18 +184,17 @@ class VoiceRecognizer(nn.Module):
         If predicted user is valid user and above confidence threshold return users name and confidence
         Else return "Unknown" and confidence
         """
-        self.train = False # set training mode to fals (will change behavior of some parts of the network like BatchNorm1d)
+        self.train = False # set training mode to false (will change behavior of some parts of the network like BatchNorm1d and Dropout)
         signal = torch.Tensor(signal).unsqueeze(1) # add the dummy axis
         signal = signal.to(self.device) # put the signal onto the device
         with torch.no_grad(): # don't autograd when predicting
             outputs = self.forward(signal)
             prediction = torch.sort(outputs.data)
-            # grab the two most confident predictions
-            highestPrediction = prediction[0][0][-1].item() # grab highest prediction
-            secHighestPrediction = prediction[0][0][-2].item() # grab second highest prediction
-            if highestPrediction > 0 and secHighestPrediction <= 0: confidence = 100
-            elif highestPrediction > 0 and secHighestPrediction > 0: confidence = (1-(secHighestPrediction/highestPrediction))*100
-            else: confidence = 0
+            if prediction[0][0][0].item() >= 0: norm = -prediction[0][0][0].item() # figure out how to make smallest num 0
+            else: norm = prediction[0][0][0].item()
+            highestPrediction = prediction[0][0][-1].item() + norm # grab highest prediction and normalize
+            secHighestPrediction = prediction[0][0][-2].item() + norm # grab second highest prediction and normalize
+            confidence = (1-(secHighestPrediction/highestPrediction))*100 # using 1 because the highest prediction should be normalized to 1
             prediction = prediction[1][0][-1].item() # grab the target number for the most confident prediction
         if confidence >= 90 and self.names[prediction] in self.validUsers:
             return self.names[prediction], confidence
@@ -259,7 +258,7 @@ class VoiceRecognizer(nn.Module):
         """
         signals = utilities.convertToMono(signals) # All signals are converted to mono to speed up CNN
         frequencies, frequencyMags = utilities.frequencyTransform(signals, rates) # CNN recieves frequency domain signals
-        frequencyMags.tolist() # Create data loader takes in a list
+        frequencyMags.tolist() # Create data loader takes in a list (not sure if this was actually doing anything because it shouldn't be in place, test later to see if it can be removed)
         if loader: # create a dataloader if a targets array was passed to method else just return the freqMags
             if targets is not None: return self.createDataLoader(frequencyMags, targets)
             else: raise Exception("Cannot create DataLoader object without the target vector")
